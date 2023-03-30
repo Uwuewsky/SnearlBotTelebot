@@ -1,16 +1,13 @@
 # SnearlBot
-## Telegram Bot on pyTelegramBotAPI
-### Used to output voices mostly. Also has the ability to block forwarded messages from channels (blacklist).
 
-**About files and folders:**
+Telegram бот для отправки голосовых сообщений и запрета репостов из заблокированных чатов.
 
-`start_bot` - main file for starting a bot.
+## Использование:
+1. Установите Python 3.8+
+2. Установите зависимости `pip install -r requirements.txt`
+3. В файле `data/token.json` запишите свой токен бота.
+3. Запустить бота можно с помощью `start_bot.py` или командой `python -m snearl_bot`.
 
-`data` - folder with bot_instance (where bot instance being created) and config with bot key and admin commands.
-
-`handlers` - all handlers used in the bot by type of usage.
-
-`keyboards` - all keyboards used in the bot by the type of usage.
-
-`services` - everything related to databases.
-
+## Зависимости:
+`Python 3.8+`
+`pyTelegramBotAPI>=4.10.0`

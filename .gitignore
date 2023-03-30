@@ -129,5 +129,6 @@ dmypy.json
 .pyre/
 
 #Jsons
-/services/blacklist.json
-/services/voices.json
+/data/blacklist.json
+/data/voicelist.json
+/data/token.json
