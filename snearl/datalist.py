@@ -1,4 +1,4 @@
-import os, json
+import os, json, sys
 
 ############################################
 # Классы для хранения и управления данными #
@@ -7,22 +7,31 @@ import os, json
 class Datalist:
     def __init__(self, filename):
         self.data_directory = "data"
+        self.download_directory = 'downloaded'
         self.filename = filename
         self.read_data()
     
     def write_data(self):
-        path = os.path.join(self.data_directory, self.filename)
+        path = os.path.join(sys.path[0], self.data_directory, self.filename)
         with open(path, mode="w", encoding="utf8") as f:
             json.dump(self.data, f, indent="    ", ensure_ascii=False)
         return
     
     def read_data(self):
-        path = os.path.join(self.data_directory, self.filename)
+        path = os.path.join(sys.path[0], self.data_directory, self.filename)
         if os.path.isfile(path):
             with open(path, mode="r", encoding="utf8") as f:
                 self.data = json.load(f)
         else:
             self.data = {}
+        return
+    
+    def download_data(self, downloaded_file, actor_name, voice_title):
+        path = os.path.join(sys.path[0], self.download_directory, actor_name)
+        if os.path.islink(path) == False:
+            os.mkdir(path)
+        with open(path + '/' + voice_title, mode = 'wb') as new_file:
+            new_file.write(downloaded_file)
         return
     
     def __getitem__(self, key):
@@ -104,6 +113,14 @@ class DatalistActor(DatalistChat):
         self.write_data()
         return
     
+    def edit_actor_entry(self, chat_id, actor_name, entry_key, new_title):
+        """Редактирует запись актера в чате."""
+        entry_key = str(entry_key)
+        if self.get_chat_entry(chat_id, actor_name):
+            self.data[str(chat_id)][str(actor_name)][str(entry_key)] =  new_title
+            self.write_data()
+        return
+    
     def delete_actor_entry(self, chat_id, actor_name, entry_key):
         """Удаляет запись актера."""
         if actor := self.get_chat_entry(chat_id, actor_name):
@@ -111,4 +128,10 @@ class DatalistActor(DatalistChat):
             if len(actor) == 0:
                 self.delete_chat_entry(chat_id, actor_name)
             self.write_data()
+        return
+    
+    def download_actor_entry(self, downloaded_file, actor_name, voice_title):
+        """Cкачивает добавленный в базу войс."""
+        voice_title += '.ogg'
+        self.download_data(downloaded_file, actor_name, voice_title)
         return
