@@ -85,9 +85,10 @@ def voice_add(message):
     
     try:
         chat_id = message.chat.id
-        actor_name = extract_arguments(message.text).split()[0]
+        args = extract_arguments(message.text).split()
+        actor_name = args[0]
         voice_id = message.reply_to_message.voice.file_id
-        voice_title =  extract_arguments(message.text)[len(actor_name)+1:]
+        voice_title =  " ".join(args[1:])
         if actor_name == "" or voice_title == "":
             raise Exception
     except Exception:
@@ -101,7 +102,44 @@ def voice_add(message):
         return
     else:
         _voicelist.add_actor_entry(chat_id, actor_name, voice_id, voice_title)
+
+        file_for_downloading = bot.get_file(voice_id)
+        downloaded_file = bot.download_file(file_for_downloading.file_path)
+        _voicelist.download_actor_entry(downloaded_file, actor_name, voice_title)
+
         bot.reply_to(message, text=f"В дискографию {actor_name} успешно добавлено {voice_title}")
+    return
+
+####################
+# /voice_edit      #
+####################
+
+@bot.message_handler(commands=["voice_edit"])
+def voice_edit(message):
+    if not check_admin(message):
+        return
+
+    try:
+        chat_id = message.chat.id
+        args = extract_arguments(message.text).split()
+        actor_name = args[0]
+        voice_num = int(args[1]) - 1
+        new_title = " ".join(args[2:])
+        al = _voicelist.get_chat_entry(chat_id, actor_name)
+
+        if voice_num < 0 or voice_num > len(al)-1:
+            raise Exception
+        
+        voice_id, voice_title = [*al.items()][voice_num]
+        
+    except Exception:
+        bot.reply_to(message, text="Нужно указать имя автора войса, его номер из списка voicelist и новое описание, например:\n"\
+                                   "/voice_edit Митя 3 Очень интересный вопрос\n"\
+                                   "Учтите, что имя чувствительно к регистру.")
+        return
+    
+    _voicelist.edit_actor_entry(chat_id, actor_name, voice_id, new_title)
+    bot.reply_to(message, text = f"Название войса {voice_title} успешно изменено на {new_title}.")
     return
 
 ####################
@@ -115,16 +153,17 @@ def voice_delete(message):
         return
     
     try:
+        chat_id = message.chat.id
         args = extract_arguments(message.text).split()
         actor_name = args[0]
         voice_num = int(args[1]) - 1
-        al = _voicelist.get_chat_entry(message.chat.id, actor_name)
+        al = _voicelist.get_chat_entry(chat_id, actor_name)
         
         if voice_num < 0 or voice_num > len(al) - 1:
             raise Exception
         
         voice_id, voice_title = [*al.items()][voice_num]
-        _voicelist.delete_actor_entry(message.chat.id, actor_name, voice_id)
+        _voicelist.delete_actor_entry(chat_id, actor_name, voice_id)
     except Exception:
         bot.reply_to(message, text="Нужно указать имя автора войса и номер сообщения из /voicelist, например:\n"\
                                    "/voice_delete Эрл 15\n"\
