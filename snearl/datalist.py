@@ -28,12 +28,19 @@ class Datalist:
     
     def download_data(self, downloaded_file, actor_name, voice_title):
         path = os.path.join(sys.path[0], self.download_directory, actor_name)
-        if os.path.islink(path) == False:
+        if os.path.isdir(path) == False:
             os.mkdir(path)
         with open(path + '/' + voice_title, mode = 'wb') as new_file:
             new_file.write(downloaded_file)
         return
-    
+
+    def rename_data(self, actor_name, new_title, old_title):
+        path = os.path.join(sys.path[0], self.download_directory, actor_name)
+        if os.path.exists(f'{path}\\{old_title}'):
+            os.rename(f'{path}\\{old_title}', f'{path}\\{new_title}')
+            return
+        return
+
     def __getitem__(self, key):
         key = str(key)
         if key in self.data.keys():
@@ -94,12 +101,16 @@ class DatalistChat(Datalist):
 class DatalistActor(DatalistChat):
     """Тип списка данных для отдельных актеров."""
     
-    def get_actor_entry(self, chat_id, actor_name, entry_key):
+    def get_actor_entry(self, chat_id, actor_name, entry_key, entry_value):
         """Возвращает запись по entry_key в списке актера."""
         entry_key = str(entry_key)
         if actor := self.get_chat_entry(chat_id, actor_name):
             if entry_key in actor.keys():
+                if entry_value in actor.values():
+                    return entry_value
                 return actor[entry_key]
+            elif entry_value in actor.values():
+                return entry_value
         return None
     
     def add_actor_entry(self, chat_id, actor_name, entry_key, entry_value):
@@ -134,4 +145,11 @@ class DatalistActor(DatalistChat):
         """Cкачивает добавленный в базу войс."""
         voice_title += '.ogg'
         self.download_data(downloaded_file, actor_name, voice_title)
+        return
+    
+    def rename_downloaded_file(self, actor_name, new_title, old_title):
+        """Переименовывает войс."""
+        new_title += '.ogg'
+        old_title += '.ogg'
+        self.rename_data(actor_name, new_title, old_title)
         return
