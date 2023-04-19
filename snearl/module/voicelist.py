@@ -97,8 +97,12 @@ def voice_add(message):
                                    "Учтите, что имя чувствительно к регистру.")
         return
     
-    if _voicelist.get_actor_entry(chat_id, actor_name, voice_id):
-        bot.reply_to(message, text=f"Это голосовое сообщение уже в списке.")
+    current_voice = _voicelist.get_actor_entry(chat_id, actor_name, voice_id, voice_title)
+    if current_voice:
+        if current_voice == voice_title:
+            bot.reply_to(message, text = "Голосовое сообщение с таким названием уже есть, придумайте другое название.")
+            return
+        bot.reply_to(message, text="Это голосовое сообщение уже в списке.")
         return
     else:
         _voicelist.add_actor_entry(chat_id, actor_name, voice_id, voice_title)
@@ -130,7 +134,7 @@ def voice_edit(message):
         if voice_num < 0 or voice_num > len(al)-1:
             raise Exception
         
-        voice_id, voice_title = [*al.items()][voice_num]
+        voice_id, old_title = [*al.items()][voice_num]
         
     except Exception:
         bot.reply_to(message, text="Нужно указать имя автора войса, его номер из списка voicelist и новое описание, например:\n"\
@@ -138,8 +142,14 @@ def voice_edit(message):
                                    "Учтите, что имя чувствительно к регистру.")
         return
     
+    if _voicelist.get_actor_entry(chat_id, actor_name, voice_id, new_title) == new_title:
+        bot.reply_to(message, text = "Голосовое сообщение с таким названием уже есть, придумайте другое название.")
+        return
+    
+    _voicelist.rename_downloaded_file(actor_name, new_title, old_title)
     _voicelist.edit_actor_entry(chat_id, actor_name, voice_id, new_title)
-    bot.reply_to(message, text = f"Название войса {voice_title} успешно изменено на {new_title}.")
+
+    bot.reply_to(message, text = f"Название войса {old_title} успешно изменено на {new_title}.")
     return
 
 ####################
