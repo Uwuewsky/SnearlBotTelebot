@@ -1,1 +1,1 @@
-__all__ = ["blacklist", "voicelist"]
+__all__ = ["blacklist", "voicelist", "dataupdate"]

@@ -1,323 +1,362 @@
-import math
+"""
+Модуль для голосовых сообщений.
+Позволяет сохранять войсы через команды,
+а затем отправлять в чат через поиск инлайн.
+"""
 
-from telebot import types
-from telebot.util import extract_arguments
+import math, re
+from io import BytesIO
 
-from snearl.instance import bot
-from snearl.datalist import DatalistActor
-from snearl.util import *
+from telegram import (
+    InlineQueryResultCachedVoice, InlineQueryResultArticle,
+    InputTextMessageContent,
+    InlineKeyboardButton, InlineKeyboardMarkup)
+from telegram.ext import (
+    InlineQueryHandler, CommandHandler, CallbackQueryHandler)
 
-_voicelist = DatalistActor("voicelist.json")
+from snearl.instance import app, help_messages, check_access
+import snearl.module.voicelist_db as db
+
+####################
+# main             #
+####################
+
+def main():
+    db.voicelist_create_table()
+    db.con.commit()
+
+    help_messages.append("""
+*Хранить и отправлять инлайн списки голосовых сообщений*
+  a\. Добавить войс:
+      `/voice_add [ИмяАвтора] [КраткоеОписание]`;
+  b\. Открыть инлайн список войсов:
+      `@SnearlBot [ТекстЗапроса]`;
+      Запросом может быть _имя автора_ или _строка из описания_;
+  c\. Удалить войс:
+      `/voice_delete [ИмяАвтора] [НомерВойса]`;
+  d\. Отредактировать описание войса:
+      `/voice_edit [ИмяАвтора] [НомерВойса] [НовоеОписание]`;
+  e\. Список войсов: /voicelist;
+""")
+
+    # команды
+    app.add_handler(CommandHandler("voice_add", voice_add))
+    app.add_handler(CommandHandler("voice_delete", voice_delete))
+    app.add_handler(CommandHandler("voicelist", voicelist_show))
+
+    # инлайн
+    app.add_handler(InlineQueryHandler(inline_query))
+    app.add_handler(CallbackQueryHandler(
+        voicelist_show_callback,
+        pattern="^voicelist"))
+
+    return
 
 ####################
 # inline functions #
 ####################
 
-@bot.inline_handler(lambda query: True)
-def voice_inline_send(inline_query):
+async def inline_query(update, context):
     """Функция инлайн запроса списка войсов."""
-    offset = 0 if inline_query.offset == "" else int(inline_query.offset)
-    
-    # выдать результат, если таковой есть
-    if out_list := get_inline_query(inline_query.query, offset=offset):
-        bot.answer_inline_query(inline_query.id, out_list,
-                                cache_time=60, next_offset=str(offset+50))
-    # иначе выдать сообщение об ошибке
-    elif offset == 0:
-        s = f"По запросу {inline_query.query} ничего не найдено."
-        out_message = [types.InlineQueryResultArticle("id_nothing", s,
-                                                      types.InputTextMessageContent(s))]
-        bot.answer_inline_query(inline_query.id, out_message, cache_time=60)
+
+    # список найденных войсов в бд
+    if vl := db.voicelist_search(update.inline_query.query):
+        # составляем инлайн список
+        results = [
+            InlineQueryResultCachedVoice(
+                id=str(i),
+                voice_file_id=e[1],
+                title=f"{e[2]} — {e[3]}",
+                caption=f"{e[2]} — {e[3]}"
+            ) for i, e in enumerate(vl)
+        ]
+    else:
+        # иначе выдаем сообщение что ничего не найдено
+        s = f"По запросу {update.inline_query.query} ничего не найдено"
+        results = [
+            InlineQueryResultArticle(
+                id = "0",
+                title = s,
+                input_message_content = InputTextMessageContent(s))
+        ]
+
+    try:
+        await update.inline_query.answer(results, auto_pagination=True)
+    except Exception as e:
+        # выдаем в инлайн сообщение об ошибке
+        s = f"Во время запроса {update.inline_query.query} произошла ошибка"
+        await update.inline_query.answer([
+            InlineQueryResultArticle(
+                id = "0",
+                title = s,
+                description = str(e),
+                input_message_content = InputTextMessageContent(
+                    f"{s}:\n{str(e)}"))
+        ])
     return
-
-def get_inline_query(query, offset=0):
-    """Возвращает список войсов для отправки через инлайн."""
-    if vl := get_query_entries(query):
-        return [types.InlineQueryResultCachedVoice(str(i), v_id, v_title)
-                for i, (v_id, v_title) in enumerate(vl)][offset:offset+50]
-    return None
-
-def get_query_entries(query):
-    """
-    Возвращает список записей от автора,
-    либо ищет запрос в описаниях.
-    """
-    query = query.lower()
-    result_actor_list = []
-    result_search_list = []
-    
-    # поиск проходит по спискам всех чатов
-    for chat in _voicelist.data.values():
-        for actor_name, actor_voices in chat.items():
-            # добавить всю коллекцию от автора
-            if query == actor_name.lower():
-                result_actor_list += [*actor_voices.items()]
-            # иначе искать совпадения в описании войсов
-            else:
-                for voice_id, voice_desc in actor_voices.items():
-                    if query in voice_desc.lower():
-                        result_search_list.append([voice_id, voice_desc])
-    
-    if len(result_actor_list) > 0:
-        return result_actor_list
-    elif len(result_search_list) > 0:
-        return result_search_list
-    
-    return None
 
 ####################
 # /voice_add       #
 ####################
 
-@bot.message_handler(commands=["voice_add"])
-def voice_add(message):
+async def voice_add(update, context):
     """Команда добавления нового голосового сообщения."""
-    if not check_admin(message):
-        return
-    
-    if message.reply_to_message is None:
-        bot.reply_to(message, text="Нужно отправить команду ответом на голосовое сообщение.")
-        return 
-    
-    if message.reply_to_message.voice is None:
-        bot.reply_to(message, text="Это не голосовое сообщение.")
-        return
-    
-    try:
-        chat_id = message.chat.id
-        args = extract_arguments(message.text).split()
-        actor_name = args[0]
-        voice_id = message.reply_to_message.voice.file_id
-        voice_title =  " ".join(args[1:])
-        if actor_name == "" or voice_title == "":
-            raise Exception
-    except Exception:
-        bot.reply_to(message, text="Нужно указать имя автора войса и описание, например:\n"\
-                                   "/voice_add Эрл Ну шо вы ребятки\n"\
-                                   "Учтите, что имя чувствительно к регистру.")
-        return
-    
-    current_voice = _voicelist.get_actor_entry(chat_id, actor_name, voice_id, voice_title)
-    if current_voice:
-        if current_voice == voice_title:
-            bot.reply_to(message, text = "Голосовое сообщение с таким названием уже есть, придумайте другое название.")
-            return
-        bot.reply_to(message, text="Это голосовое сообщение уже в списке.")
-        return
-    else:
-        _voicelist.add_actor_entry(chat_id, actor_name, voice_id, voice_title)
-
-        file_for_downloading = bot.get_file(voice_id)
-        downloaded_file = bot.download_file(file_for_downloading.file_path)
-        _voicelist.download_actor_entry(downloaded_file, actor_name, voice_title)
-
-        bot.reply_to(message, text=f"В дискографию {actor_name} успешно добавлено {voice_title}")
-    return
-
-####################
-# /voice_edit      #
-####################
-
-@bot.message_handler(commands=["voice_edit"])
-def voice_edit(message):
-    if not check_admin(message):
+    if await check_access(update):
         return
 
-    try:
-        chat_id = message.chat.id
-        args = extract_arguments(message.text).split()
-        actor_name = args[0]
-        voice_num = int(args[1]) - 1
-        new_title = " ".join(args[2:])
-        al = _voicelist.get_chat_entry(chat_id, actor_name)
-
-        if voice_num < 0 or voice_num > len(al)-1:
-            raise Exception
-        
-        voice_id, old_title = [*al.items()][voice_num]
-        
-    except Exception:
-        bot.reply_to(message, text="Нужно указать имя автора войса, его номер из списка voicelist и новое описание, например:\n"\
-                                   "/voice_edit Митя 3 Очень интересный вопрос\n"\
-                                   "Учтите, что имя чувствительно к регистру.")
+    if update.message.reply_to_message is None:
+        await update.message.reply_text(
+            "Нужно отправить команду ответом на голосовое сообщение.")
         return
-    
-    if _voicelist.get_actor_entry(chat_id, actor_name, voice_id, new_title) == new_title:
-        bot.reply_to(message, text = "Голосовое сообщение с таким названием уже есть, придумайте другое название.")
-        return
-    
-    _voicelist.rename_downloaded_file(actor_name, new_title, old_title)
-    _voicelist.edit_actor_entry(chat_id, actor_name, voice_id, new_title)
 
-    bot.reply_to(message, text = f"Название войса {old_title} успешно изменено на {new_title}.")
+    if update.message.reply_to_message.voice is None:
+        await update.message.reply_text("Это не голосовое сообщение.")
+        return
+
+    if len(context.args) < 2:
+        await update.message.reply_markdown_v2(
+            "Нужно указать имя автора и описание, например:\n"\
+            "`/voice_add Эрл Ну шо вы ребятки`\n"\
+            "Учтите, что имя чувствительно к регистру\.")
+        return
+
+    chat_id = update.effective_chat.id
+    file_id = update.message.reply_to_message.voice.file_id
+    # второй индекс ограничивает длину строки в 20 и 50 символов
+    file_author = context.args[0][:20]
+    file_desc =  " ".join(context.args[1:])[:50]
+
+    # проверка имен на валидность
+    regexp = re.compile("^[\w ]*$")
+    if not (re.match(regexp, file_author) and
+            re.match(regexp, file_desc)):
+        await update.message.reply_text(
+            "Имя автора или описание содержит недопустимые символы.")
+        return
+
+    if db.voicelist_get(file_id):
+        await update.message.reply_text(
+            "Это голосовое сообщение уже в списке.")
+        return
+
+    with BytesIO() as file_blob:
+        f = await app.bot.get_file(file_id)
+        await f.download_to_memory(file_blob)
+        db.voicelist_create_table()
+        db.voicelist_add(chat_id, file_id,
+                         file_author, file_desc,
+                         file_blob.getbuffer())
+        db.con.commit()
+
+    await update.message.reply_text(
+        f"В дискографию {file_author} успешно добавлено {file_desc}")
     return
 
 ####################
 # /voice_delete    #
 ####################
 
-@bot.message_handler(commands=["voice_delete"])
-def voice_delete(message):
+async def voice_delete(update, context):
     """Команда удаления голосового сообщения."""
-    if not check_admin(message):
+    if await check_access(update):
         return
-    
+
     try:
-        chat_id = message.chat.id
-        args = extract_arguments(message.text).split()
-        actor_name = args[0]
-        voice_num = int(args[1]) - 1
-        al = _voicelist.get_chat_entry(chat_id, actor_name)
-        
-        if voice_num < 0 or voice_num > len(al) - 1:
+        chat_id = update.effective_chat.id
+        file_author = context.args[0]
+        file_num = int(context.args[1]) - 1
+
+        # взять войс по указанному в команде номеру
+        vl = db.voicelist_by_author(chat_id, file_author)
+        if file_num < 0 or file_num > len(vl) - 1:
             raise Exception
-        
-        voice_id, voice_title = [*al.items()][voice_num]
-        _voicelist.delete_actor_entry(chat_id, actor_name, voice_id)
+
+        entry = vl[file_num]
+        file_id, file_desc = entry[1], entry[3]
+
+        db.voicelist_delete(file_id)
+        db.con.commit()
+
     except Exception:
-        bot.reply_to(message, text="Нужно указать имя автора войса и номер сообщения из /voicelist, например:\n"\
-                                   "/voice_delete Эрл 15\n"\
-                                   "Учтите, что имя чувствительно к регистру.")
+        await update.message.reply_markdown_v2(
+            "Нужно указать имя автора войса и "\
+            "номер сообщения из /voicelist, например:\n"\
+            "`/voice_delete Эрл 15`\n"\
+            "Учтите, что имя чувствительно к регистру\.")
         return
-    bot.reply_to(message, text=f"Из дискографии {actor_name} успешно удален {voice_title}")
+
+    await update.message.reply_text(
+        f"Из дискографии {file_author} успешно удален {file_desc}")
     return
 
 ####################
 # /voicelist       #
 ####################
 
-@bot.message_handler(commands=["voicelist"])
-def voicelist_show(message):
+async def voicelist_show(update, context):
     """Команда показа списка голосовых сообщений."""
-    out_message = _voicelist_get_keyboard_text(message.chat.id, 0, 0)
-    markup = _voicelist_get_keyboard(message.chat.id, 0, 0, message.from_user.id)
-    bot.reply_to(message, text=out_message, reply_markup=markup)
+    out_message = _voicelist_show_text(update.effective_chat.id, 0, 0)
+    markup = _voicelist_show_keyboard(
+        update.effective_chat.id, 0, 0, update.effective_user.id)
+    await update.message.reply_text(out_message, reply_markup=markup)
     return
 
-@bot.callback_query_handler(func = lambda callback: callback.data.split()[0] == "voicelist")
-def _voicelist_keyboard_callback(callback):
-    """Функция, отвечающая на коллбэки от нажатия кнопок клавиатуры /voicelist."""
-    call_data = callback.data.split()
+async def voicelist_show_callback(update, context):
+    """Функция, отвечающая на коллбэки от нажатия кнопок /voicelist."""
+    call_data = update.callback_query.data.split()
     call_chat = call_data[1]
-    call_actor = int(call_data[2])
+    call_author = int(call_data[2])
     call_page = int(call_data[3])
     call_user = call_data[4]
     call_type = call_data[5]
-    
-    if call_user != str(callback.from_user.id):
-        bot.answer_callback_query(callback.id, text="Вы можете листать только отправленный Вам список.")
+
+    if call_user != str(update.callback_query.from_user.id):
+        await update.callback_query.answer(
+            "Вы можете листать только отправленный Вам список.")
         return
     if call_type == "pageinfo":
-        bot.answer_callback_query(callback.id, text=f"Страница #{call_page+1}")
+        await update.callback_query.answer(f"Страница #{call_page+1}")
         return
-    if call_type == "actorinfo":
-        bot.answer_callback_query(callback.id, text=f"Автор #{call_actor+1}")
+    if call_type == "authorinfo":
+        await update.callback_query.answer(f"Автор #{call_author+1}")
         return
-    
+
     if call_type == "pageback":
         call_page -= 1
     if call_type == "pagenext":
         call_page += 1
-    
-    if "actor" in call_type:
+
+    if "author" in call_type:
         call_page = 0
-    if call_type == "actorback":
-        call_actor -= 1
-    if call_type == "actornext":
-        call_actor += 1
-    
-    out_message = _voicelist_get_keyboard_text(call_chat, call_actor, call_page)
-    markup = _voicelist_get_keyboard(call_chat, call_actor, call_page, call_user)
-    bot.edit_message_text(out_message, message_id=callback.message.id,
-                          chat_id=callback.message.chat.id, reply_markup=markup)
+    if call_type == "authorback":
+        call_author -= 1
+    if call_type == "authornext":
+        call_author += 1
+
+    out_message = _voicelist_show_text(
+        call_chat, call_author, call_page)
+    markup = _voicelist_show_keyboard(
+        call_chat, call_author, call_page, call_user)
+    await update.callback_query.edit_message_text(
+        out_message, reply_markup=markup)
     return
 
-def _voicelist_get_keyboard_text(chat_id, actor_num, page):
+def _voicelist_show_text(chat_id, author_num, page):
     """Возвращает текст сообщения /voicelist"""
-    if _voicelist[chat_id]:
-        actors_names = [*_voicelist[chat_id].keys()]
-        if actor_num >= 0 and actor_num < len(actors_names):
-            actor_name = actors_names[actor_num]
+
+    if al := db.voicelist_authors_list(chat_id):
+        # найти автора по номеру из списка всех авторов чата
+        if author_num >= 0 and author_num < len(al):
+            file_author = al[author_num]
         else:
-            actor_name = actors_names[0]
-        
-        if al := _voicelist.get_chat_entry(chat_id, actor_name):
-            s = "Список голосовых сообщений:\n\n"
-            offset = page * 25
-            original_list = [*al.values()]
-            print_list = original_list[offset:offset+25]
-            
-            # может произойти если удалить записи из списка
-            # и нажать на кнопку старого сообщения
-            if len(print_list) == 0:
-                print_list = original_list[0:25]
-                offset = 0
-            
-            for i, j in enumerate(print_list, start=offset+1):
-                s += f"{i}) {j}\n"
-            return s
+            file_author = al[0]
+
+        # список всех войсов автора для составления текста
+        vl = db.voicelist_by_author(chat_id, file_author)
+        s = "Список голосовых сообщений:\n\n"
+        offset = page * 25
+
+        # сформатировать текст в виде списка войсов
+        # с постраничным отступом и нумерацией
+        if not vl[offset:offset+25]:
+            offset = 0
+        for i, e in enumerate(vl[offset:offset+25], start=offset+1):
+            s += f"{i}) {e[3]}\n"
+
+        return s
     return "Список голосовых сообщений пуст."
 
-def _voicelist_get_keyboard(chat_id, actor_num, page, user_id):
+def _voicelist_show_keyboard(chat_id, author_num, page, user_id):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
-    
-    keyboard = types.InlineKeyboardMarkup(row_width=3)
-    
-    if vl := _voicelist[chat_id]:
-        actors_names = [*vl.keys()]
-        index_max = len(actors_names) - 1
-        
-        if actor_num >= 0 and actor_num <= index_max:
-            actor_name = actors_names[actor_num]
-        else:
-            actor_name = actors_names[0]
-            actor_num = 0
-        page_max = max(0, math.ceil(len(vl[actor_name])/25) - 1)
-        if page > page_max or page < 0:
-            page = 0
-        
-        call_data = f"voicelist {chat_id} {actor_num} {page} {user_id}"
-        
-        # Страницы авторов
-        actor_name_next = ""
-        actor_name_back = ""
-        if actor_num == 0 and actor_num < index_max:
-            actor_name_next = actors_names[actor_num+1]
-        elif actor_num == index_max and actor_num != 0:
-            actor_name_back = actors_names[actor_num-1]
-        elif actor_num > 0 and actor_num < index_max:
-            actor_name_next = actors_names[actor_num+1]
-            actor_name_back = actors_names[actor_num-1]
+    al = db.voicelist_authors_list(chat_id)
+    if not al:
+        return None
+    ##################################
+    # Клавиатура перехода по авторам #
 
-        btn_actor_back = types.InlineKeyboardButton(f"< {actor_name_back}",
-                                                    callback_data=f"{call_data} actorback")
-        btn_actor_info = types.InlineKeyboardButton(actor_name,
-                                                    callback_data=f"{call_data} actorinfo")
-        btn_actor_next = types.InlineKeyboardButton(f"{actor_name_next} >",
-                                                    callback_data=f"{call_data} actornext")
-        
-        if actor_num == 0 and actor_num < index_max:
-            keyboard.add(btn_actor_info, btn_actor_next)
-        elif actor_num == index_max and actor_num != 0:
-            keyboard.add(btn_actor_back, btn_actor_info)
-        elif actor_num > 0 and actor_num < index_max:
-            keyboard.add(btn_actor_back, btn_actor_info, btn_actor_next)
-        else:
-            keyboard.add(btn_actor_info)
-        
-        # Страницы списка
-        btn_page_back = types.InlineKeyboardButton("< Назад",
-                                                   callback_data=f"{call_data} pageback")
-        btn_page_info = types.InlineKeyboardButton(f"{page+1}/{page_max+1}",
-                                                   callback_data=f"{call_data} pageinfo")
-        btn_page_next = types.InlineKeyboardButton("Вперед >",
-                                                   callback_data=f"{call_data} pagenext")
-        if page == 0 and page < page_max:
-            keyboard.add(btn_page_info, btn_page_next)
-        elif page == page_max and page != 0:
-            keyboard.add(btn_page_back, btn_page_info)
-        elif page > 0 and page < page_max:
-            keyboard.add(btn_page_back, btn_page_info, btn_page_next)
-        else:
-            keyboard.add(btn_page_info)
-    return keyboard
+    # ищем имя автора по номеру
+    index_max = len(al) - 1
+    if author_num >= 0 and author_num <= index_max:
+        file_author = al[author_num]
+    else:
+        file_author = al[0]
+        author_num = 0
+
+    # используем автора чтобы получить список его войсов
+    # и последнюю страницу для пролистывания их списка
+    if vl := db.voicelist_by_author(chat_id, file_author):
+        page_max = max(0, math.ceil(len(vl)/25) - 1)
+    if page > page_max or page < 0:
+        page = 0
+
+    # данные, передающиеся в коллбека при нажатии на кнопку
+    call_data = f"voicelist {chat_id} {author_num} {page} {user_id}"
+
+    # Имена авторов для кнопок перехода
+    author_name_next = ""
+    author_name_back = ""
+    if author_num == 0 and author_num < index_max:
+        author_name_next = al[author_num + 1]
+    elif author_num == index_max and author_num != 0:
+        author_name_back = al[author_num - 1]
+    elif author_num > 0 and author_num < index_max:
+        author_name_next = al[author_num + 1]
+        author_name_back = al[author_num - 1]
+
+    # Сами кнопки
+    btn_author_back = InlineKeyboardButton(
+        f"< {author_name_back}",
+        callback_data=f"{call_data} authorback")
+    btn_author_info = InlineKeyboardButton(
+        file_author,
+        callback_data=f"{call_data} authorinfo")
+    btn_author_next = InlineKeyboardButton(
+        f"{author_name_next} >",
+        callback_data=f"{call_data} authornext")
+
+    # Добавление этих кнопок в ряд клавиатуры
+    keyboard = []
+    keyboard_author = []
+
+    if author_num == 0 and author_num < index_max:
+        keyboard_author += [btn_author_info, btn_author_next]
+    elif author_num == index_max and author_num != 0:
+        keyboard_author += [btn_author_back, btn_author_info]
+    elif author_num > 0 and author_num < index_max:
+        keyboard_author += [
+            btn_author_back, btn_author_info, btn_author_next
+        ]
+    else:
+        keyboard_author += [btn_author_info]
+
+    keyboard.append(keyboard_author)
+
+    ########################################### 
+    # Клавиатура перехода по страницам войсов #
+
+    # Кнопки
+    btn_page_back = InlineKeyboardButton(
+        "< Назад",
+        callback_data=f"{call_data} pageback")
+    btn_page_info = InlineKeyboardButton(
+        f"{page+1}/{page_max+1}",
+        callback_data=f"{call_data} pageinfo")
+    btn_page_next = InlineKeyboardButton(
+        "Вперед >",
+        callback_data=f"{call_data} pagenext")
+
+    # Добавление этих кнопок во второй ряд клавиатуры
+    keyboard_page = []
+    if page == 0 and page < page_max:
+        keyboard_page += [btn_page_info, btn_page_next]
+    elif page == page_max and page != 0:
+        keyboard_page += [btn_page_back, btn_page_info]
+    elif page > 0 and page < page_max:
+        keyboard_page += [btn_page_back, btn_page_info, btn_page_next]
+    else:
+        keyboard_page += [btn_page_info]
+    keyboard.append(keyboard_page)
+
+    # Составление клавиатуры
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    return reply_markup

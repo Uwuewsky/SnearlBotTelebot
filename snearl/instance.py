@@ -1,32 +1,82 @@
-from telebot import TeleBot
-from snearl.datalist import Datalist
-
-_token = Datalist("token.json")
-bot = TeleBot(_token.data)
-del _token
-
-_help_msg = """
-SnearlBot умеет:
-1. Удалять репосты из заблокированных чатов.
-   a. Блокируем чат через /block;
-   b. Теперь бот будет удалять репосты;
-   c. Разблокировать чат можно через /allow;
-   d. Посмотреть список можно через /blacklist;
-
-2. Хранить и отправлять инлайн списки голосовых сообщений.
-   a. Отвечаем на войс, например:
-        /voice_add [ИмяАвтора] [КраткоеОписание];
-   b. Вводим тег бота и имя автора:
-        @SnearlBot [ИмяАвтора];
-   c. Можно ввести поисковый запрос из текста описания;
-   d. Удалить войс можно с помощью:
-        /voice_delete [ИмяАвтора] [НомерВойса];
-   e. Отредактировать название войса можно с помощью:
-        /voice_edit [Имя автора] [Номер войса] [Новое название];
-   f. Посмотреть список можно через /voicelist;
+"""
+Главный модуль приложения, базовых команд и функций.
 """
 
-@bot.message_handler(commands=["start", "help"])
-def send_help(message):
-    bot.send_message(message.chat.id, _help_msg)
+from telegram import Chat, Update
+from telegram.ext import Application, CommandHandler
+from telegram.constants import ChatMemberStatus
+
+import snearl.database as db
+
+app = Application.builder().token(db.settings_get("token")).build()
+help_messages = ["SnearlBot умеет:\n"]
+
+##########################
+# Информационные команды #
+##########################
+
+async def send_help(update, context):
+    msg = "".join(help_messages)
+    await update.message.reply_markdown_v2(msg)
     return
+
+async def send_info(update, context):
+    await update.message.reply_markdown_v2(
+        f"Chat ID: `{update.effective_chat.id}`\n"\
+        f"User ID: `{update.effective_user.id}`")
+    return
+
+########################
+# Функция запуска бота #
+########################
+
+def start_bot():
+    app.add_handler(CommandHandler("start", send_help))
+    app.add_handler(CommandHandler("help", send_help))
+    app.add_handler(CommandHandler("info", send_info))
+
+    # каждый отдельный импорт
+    # можно отключить/подключить
+    # для отдельной функциональности
+    import snearl.module.blacklist
+    snearl.module.blacklist.main()
+
+    import snearl.module.voicelist
+    snearl.module.voicelist.main()
+
+    import snearl.module.dataupdate
+    snearl.module.dataupdate.main()
+
+    print("SnearlBot запущен.\nCtrl+C чтобы остановить бота.")
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    return
+
+#######################
+# Технические функции #
+#######################
+
+async def check_access(update):
+    """Возвращает True если доступ к команде запрещен."""
+    # проверить если включен локальный режим
+    if e := db.settings_get("local_mode"):
+        if e == str(update.effective_chat.id):
+            return False
+        else:
+            await update.message.reply_text(
+                "Команды редактирования запрещены для этого чата.")
+            return True
+
+    # разрешить доступ в приватном чате с ботом
+    if update.effective_chat.type == Chat.PRIVATE:
+        return False
+
+    # проверить статус пользователя в чате
+    status = (await update.effective_chat.get_member(
+        update.effective_user.id)).status
+
+    if status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
+        return False
+    else:
+        await update.message.reply_text(
+            "У тебя нет прав использовать админскую команду.")
+        return True
