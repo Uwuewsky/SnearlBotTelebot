@@ -58,9 +58,14 @@ def main():
 
 async def inline_query(update, context):
     """Функция инлайн запроса списка войсов."""
+    query = update.inline_query.query
+    if update.inline_query.offset:
+        offset = int(update.inline_query.offset)
+    else:
+        offset = 0
 
     # список найденных войсов в бд
-    if vl := db.voicelist_search(update.inline_query.query):
+    if vl := db.voicelist_search(query, offset):
         # составляем инлайн список
         results = [
             InlineQueryResultCachedVoice(
@@ -70,8 +75,9 @@ async def inline_query(update, context):
                 caption=f"{e[2]} — {e[3]}"
             ) for i, e in enumerate(vl)
         ]
-    else:
+    elif not offset:
         # иначе выдаем сообщение что ничего не найдено
+        # not offset чтобы это сообщение не выдавало в конце списка
         s = f"По запросу {update.inline_query.query} ничего не найдено"
         results = [
             InlineQueryResultArticle(
@@ -79,9 +85,11 @@ async def inline_query(update, context):
                 title = s,
                 input_message_content = InputTextMessageContent(s))
         ]
+    else:
+        return # пролистали до конца списка
 
     try:
-        await update.inline_query.answer(results, auto_pagination=True)
+        await update.inline_query.answer(results, next_offset=offset+50)
     except Exception as e:
         # выдаем в инлайн сообщение об ошибке
         s = f"Во время запроса {update.inline_query.query} произошла ошибка"

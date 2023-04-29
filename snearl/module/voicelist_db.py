@@ -83,14 +83,16 @@ def voicelist_authors_list(chat_id):
 # Функция поиска по запросу
 ###########################
 
-def voicelist_search(query):
+def voicelist_search(query, offset):
     query = f"%{query}%".lower()
     res = cur.execute("SELECT chat_id, file_id, file_author, file_desc "\
                       "FROM Voicelist "\
                       "WHERE LOWER(file_author) LIKE ? "\
                       "OR LOWER(file_desc) LIKE ? "\
-                      "ORDER BY file_author",
-                      (query, query))
+                      "ORDER BY file_author "\
+                      "LIMIT 50 "\
+                      "OFFSET ?",
+                      (query, query, offset))
     return res.fetchall()
 
 # Функция миграции данных в новый чат
