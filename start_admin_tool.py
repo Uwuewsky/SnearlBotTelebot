@@ -85,7 +85,7 @@ def import_token():
         print(f"Файл токена не найден:\n{token_file}")
         return
 
-    token = token_file.read_text()
+    token = token_file.read_text().strip()
     db.settings_set("token", token)
 
     print("\nТокен успешно сохранен в базу данных.")

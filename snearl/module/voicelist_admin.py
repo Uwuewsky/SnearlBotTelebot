@@ -63,6 +63,7 @@ async def _init_voices(update, context):
         return
 
     db.voicelist_create_table()
+    start_t = time.time()
     for f in files:
         m = await update.effective_chat.send_voice(f)
         chat_id = f.parts[-3]
@@ -75,7 +76,10 @@ async def _init_voices(update, context):
     db.con.commit()
 
     await update.effective_chat.send_message(
-        "Импорт завершен. Вернитесь к консоли и нажмите Ctrl+C.")
+        "Импорт завершен.\n"\
+        f"Кол-во: {len(files)} шт.\n"
+        f"Время: {int(time.time() - start_t)} сек.\n"\
+        "Вернитесь к консоли и нажмите Ctrl+C.")
 
     print("\nГолосовые сообщения успешно импортированы в базу данных.")
     return
