@@ -26,7 +26,7 @@ def main():
     db.con.commit()
 
     help_messages.append("""
-*Хранить и отправлять стикеры-цитаты инлайн*
+*Хранить и отправлять стикеры\-цитаты инлайн*
   a\. Добавить цитату:
       `/quote_add [ИмяАвтора] [КраткоеОписание]`;
   b\. Открыть инлайн список цитат:
@@ -68,7 +68,7 @@ async def quote_add(update, context):
     """Команда добавления новой цитаты."""
 
     msg = update.message.reply_to_message
-    user = update.effective_chat.get_member()
+
     if await utils.check_access(update):
         return
 
