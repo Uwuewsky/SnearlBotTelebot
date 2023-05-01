@@ -1,4 +1,8 @@
 from PIL import Image, ImageDraw, ImageFont
+import snearl.database as db
+
+content_font = ImageFont.truetype(str(db.data_dir / "OpenSans-Regular.ttf"), 18)
+header_font = ImageFont.truetype(str(db.data_dir / "OpenSans-Bold.ttf"), 21)
 
 ####################
 # Рисование цитаты #
@@ -69,7 +73,7 @@ def _quote_draw_nickname(img, draw, nickname, skip=False):
     # отступ от верхнего левого угла
     header_margin = (62, 3)
     header_color = (153, 193, 241)
-    header_font = ImageFont.truetype("OpenSans-Bold.ttf", 21)
+
     # размеры текстового поля в виде (x1, y1, x2, y2)
     header_size = draw.textbbox(header_margin, nickname, font=header_font)
 
@@ -85,16 +89,15 @@ def _quote_draw_message(img, draw, text, header_size):
     # отступ от верхнего левого угла
     text_margin = (62, 30)
     text_color = (238, 238, 238)
-    text_font = ImageFont.truetype("OpenSans-Regular.ttf", 18)
     # размеры текстового поля в виде (x1, y1, x2, y2)
-    content_size = draw.multiline_textbbox(text_margin, text, font=text_font)
+    content_size = draw.multiline_textbbox(text_margin, text, font=content_font)
 
     # рисуем задний фон
     back_size = _quote_draw_background(img, draw, header_size, content_size)
 
     # рисуем текст сообщения
     draw.multiline_text(text_margin, text,
-                        font=text_font, fill=text_color)
+                        font=content_font, fill=text_color)
     return back_size
 
 def _quote_draw_picture(img, draw, picture, header_size):

@@ -1,2 +1,4 @@
 __pycache__/
-data/
+data/database.db
+data/import/token.txt
+data/export/token.txt
