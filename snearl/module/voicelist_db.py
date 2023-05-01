@@ -16,7 +16,8 @@ def voicelist_create_table():
     file_id TEXT,
     file_author TEXT,
     file_desc TEXT,
-    file_blob BLOB
+    file_blob BLOB,
+    type TEXT
     )""")
     return
 
@@ -24,8 +25,8 @@ def voicelist_create_table():
 ###################
 
 def voicelist_add(chat_id, file_id, file_author, file_desc, file_blob):
-    cur.execute("INSERT INTO Voicelist VALUES (?, ?, ?, ?, ?)",
-                (chat_id, file_id, file_author, file_desc, file_blob))
+    cur.execute("INSERT INTO Voicelist VALUES (?, ?, ?, ?, ?, ?)",
+                (chat_id, file_id, file_author, file_desc, file_blob, "voice"))
     return
 
 # Удаление записи
@@ -80,20 +81,6 @@ def voicelist_authors_list(chat_id):
                       (chat_id, ))
     return [a[0] for a in res.fetchall()]
 
-# Функция поиска по запросу
-###########################
-
-def voicelist_search(query, offset):
-    query = f"%{query}%".lower()
-    res = cur.execute("SELECT chat_id, file_id, file_author, file_desc "\
-                      "FROM Voicelist "\
-                      "WHERE LOWER(file_author) LIKE ? "\
-                      "OR LOWER(file_desc) LIKE ? "\
-                      "ORDER BY file_author "\
-                      "LIMIT 50 "\
-                      "OFFSET ?",
-                      (query, query, offset))
-    return res.fetchall()
 
 # Функция миграции данных в новый чат
 #####################################

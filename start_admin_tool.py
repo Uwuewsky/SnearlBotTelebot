@@ -5,6 +5,9 @@ from snearl.module.dataupdate import chat_migrate
 from snearl.module.voicelist_admin import (
     import_voicelist, export_voicelist
 )
+from snearl.module.quotelist_admin import (
+    import_quotelist, export_quotelist
+)
 
 commands = [] # список команд заполняется в конце файла
 
@@ -51,7 +54,8 @@ def clear_table():
     print("Внимание: данная функция необратимо удаляет все данные из таблицы!\n"\
           "Введите номер очищаемой таблицы (q для отмены):\n"\
           "1. Таблица данных черного списка.\n"\
-          "2. Таблица данных голосовых сообщений.")
+          "2. Таблица данных голосовых сообщений.\n"\
+          "3. Таблица данных цитат.")
 
     a = input("> ")
     if a == "1":
@@ -60,6 +64,9 @@ def clear_table():
     elif a == "2":
         db.table_clear("Voicelist")
         print("\nТаблица Voicelist очищена.")
+    elif a == "3":
+        db.table_clear("Quotelist")
+        print("\nТаблица Quotelist очищена.")
     else:
         return
 
@@ -105,12 +112,20 @@ commands += [
         import_voicelist
     ),
     (
+        "Импортировать цитаты",
+        import_quotelist
+    ),
+    (
         "Экспортировать токен",
         export_token
     ),
     (
         "Экспортировать войсы",
         export_voicelist
+    ),
+    (
+        "Экспортировать цитаты",
+        export_quotelist
     ),
     (
         "Миграция данных чата",
@@ -138,9 +153,9 @@ if __name__ == "__main__":
         print(msg)
 
         a = input("> ")
+        if a == "q":
+            break
         try:
             commands[int(a)-1][1]()
         except Exception as e:
             print(e)
-            print("Выходим...")
-            break

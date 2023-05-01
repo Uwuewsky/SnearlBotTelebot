@@ -4,7 +4,6 @@
 
 from telegram import Chat, Update
 from telegram.ext import Application, CommandHandler
-from telegram.constants import ChatMemberStatus
 
 import snearl.database as db
 
@@ -44,39 +43,15 @@ def start_bot():
     import snearl.module.voicelist
     snearl.module.voicelist.main()
 
+    import snearl.module.quotelist
+    snearl.module.quotelist.main()
+
     import snearl.module.dataupdate
     snearl.module.dataupdate.main()
+    
+    import snearl.module.inline_handler
+    snearl.module.inline_handler.main()
 
     print("SnearlBot запущен.\nCtrl+C чтобы остановить бота.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
     return
-
-#######################
-# Технические функции #
-#######################
-
-async def check_access(update):
-    """Возвращает True если доступ к команде запрещен."""
-    # проверить если включен локальный режим
-    if e := db.settings_get("local_mode"):
-        if e == str(update.effective_chat.id):
-            return False
-        else:
-            await update.message.reply_text(
-                "Команды редактирования запрещены для этого чата.")
-            return True
-
-    # разрешить доступ в приватном чате с ботом
-    if update.effective_chat.type == Chat.PRIVATE:
-        return False
-
-    # проверить статус пользователя в чате
-    status = (await update.effective_chat.get_member(
-        update.effective_user.id)).status
-
-    if status in [ChatMemberStatus.OWNER, ChatMemberStatus.ADMINISTRATOR]:
-        return False
-    else:
-        await update.message.reply_text(
-            "У тебя нет прав использовать админскую команду.")
-        return True

@@ -10,8 +10,9 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     MessageHandler, CommandHandler, CallbackQueryHandler, filters)
 
-from snearl.instance import app, help_messages, check_access
+from snearl.instance import app, help_messages
 import snearl.module.blacklist_db as db
+import snearl.module.utils as utils
 
 #####################
 # main              #
@@ -64,7 +65,7 @@ async def delete_repost(update, context):
 
 async def block_group(update, context):
     """Команда добавления чата в блеклист."""
-    if await check_access(update):
+    if await utils.check_access(update):
         return
 
     if update.message.reply_to_message is None:
@@ -97,7 +98,7 @@ async def block_group(update, context):
 
 async def allow_group(update, context):
     """Команда удаления чата из блеклиста."""
-    if await check_access(update):
+    if await utils.check_access(update):
         return
 
     try:

@@ -4,6 +4,7 @@ from telegram.ext import (
 
 import snearl.module.blacklist_db as db_b
 import snearl.module.voicelist_db as db_v
+import snearl.module.quotelist_db as db_q
 
 #####################
 # main              #
@@ -30,6 +31,7 @@ async def chat_migration(update, context):
 def chat_migrate(old_chat, new_chat):
     db_v.voicelist_migration(old_chat, new_chat)
     db_b.blacklist_migration(old_chat, new_chat)
+    db_q.quotelist_migration(old_chat, new_chat)
     db_b.con.commit()
     return
 
@@ -40,5 +42,6 @@ async def bot_status_changed(update, context):
     if status in [ChatMemberStatus.BANNED, ChatMemberStatus.LEFT]:
         db_b.blacklist_clear_by_chat(update.effective_chat.id)
         db_v.voicelist_clear_by_chat(update.effective_chat.id)
+        db_q.quotelist_clear_by_chat(update.effective_chat.id)
         db_b.con.commit()
     return
