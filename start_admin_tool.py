@@ -1,13 +1,13 @@
+"""
+Инструмент администратора.
+"""
+
 import snearl.database as db
 
 # импорт из модулей
-from snearl.module.dataupdate import chat_migrate
-from snearl.module.voicelist_admin import (
-    import_voicelist, export_voicelist
-)
-from snearl.module.quotelist_admin import (
-    import_quotelist, export_quotelist
-)
+import snearl.module.blacklist_admin as admin_b
+import snearl.module.voicelist_admin as admin_v
+import snearl.module.quotelist_admin as admin_q
 
 commands = [] # список команд заполняется в конце файла
 
@@ -19,6 +19,8 @@ def chat_migration():
     """
     Заменяет в записях базы данных значения колонки чата на новое.
     """
+    from snearl.module.dataupdate import chat_migrate
+    
     old = input("(Получить ID чата можно командой /info)\n"\
                 "Вставьте ID старого чата:\n"\
                 "> ")
@@ -28,7 +30,6 @@ def chat_migration():
     chat_migrate(old, new)
 
     print("\nМиграция данных успешно завершена.")
-    return
 
 def set_local_mode():
     """
@@ -48,7 +49,6 @@ def set_local_mode():
     else:
         db.settings_set("local_mode", chat_id)
         print("\nЛокальный режим включен")
-    return
 
 def clear_table():
     print("Внимание: данная функция необратимо удаляет все данные из таблицы!\n"\
@@ -71,7 +71,6 @@ def clear_table():
         return
 
     db.con.commit()
-    return
 
 def export_token():
     token_file = db.export_dir / "token.txt"
@@ -81,7 +80,6 @@ def export_token():
     token_file.write_text(token)
 
     print(f"\nТокен успешно экспортирован в файл {token_file}.")
-    return
 
 def import_token():
     """
@@ -96,7 +94,6 @@ def import_token():
     db.settings_set("token", token)
 
     print("\nТокен успешно сохранен в базу данных.")
-    return
 
 ############
 # Commands #
@@ -104,39 +101,47 @@ def import_token():
 
 commands += [
     (
-        "Импортировать токен",
+        "[v] Импортировать токен",
         import_token
     ),
     (
-        "Импортировать войсы",
-        import_voicelist
+        "[v] Импортировать черный список",
+        admin_b.import_blacklist
     ),
     (
-        "Импортировать цитаты",
-        import_quotelist
+        "[v] Импортировать войсы",
+        admin_v.import_voicelist
     ),
     (
-        "Экспортировать токен",
+        "[v] Импортировать цитаты",
+        admin_q.import_quotelist
+    ),
+    (
+        "[^] Экспортировать токен",
         export_token
     ),
     (
-        "Экспортировать войсы",
-        export_voicelist
+        "[^] Экспортировать черный список",
+        admin_b.export_blacklist
     ),
     (
-        "Экспортировать цитаты",
-        export_quotelist
+        "[^] Экспортировать войсы",
+        admin_v.export_voicelist
     ),
     (
-        "Миграция данных чата",
+        "[^] Экспортировать цитаты",
+        admin_q.export_quotelist
+    ),
+    (
+        "[!] Миграция данных чата",
         chat_migration
     ),
     (
-        "Включить локальный режим",
+        "[!] Включить локальный режим",
         set_local_mode
     ),
     (
-        "Удалить данные из БД",
+        "[!] Удалить данные из БД",
         clear_table
     )
 ]
@@ -147,10 +152,10 @@ commands += [
 
 if __name__ == "__main__":
     while True:
-        msg = "\nВведите номер действия (q для выхода):\n"
+        message = "\nВведите номер действия (q для выхода):\n"
         for i, e in enumerate(commands, start=1):
-            msg += f"{i}. {e[0]};\n"
-        print(msg)
+            message += f"{i:2}. {e[0]};\n"
+        print(message)
 
         a = input("> ")
         if a == "q":

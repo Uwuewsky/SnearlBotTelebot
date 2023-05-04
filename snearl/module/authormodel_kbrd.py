@@ -1,21 +1,32 @@
+"""
+Клавиатура модели authormodel,
+позволяющая пролистывать списки
+постранично для каждого автора
+"""
+
 import math
 from telegram import (
     InlineKeyboardButton, InlineKeyboardMarkup
 )
 
-def authorlist_show_keyboard(chat_id, author_num, page, user_id,
-                             get_authors_list, get_by_author,
-                             callback_name):
+#############
+# Keyboard  #
+#############
+
+def show_keyboard(chat_id, author_num, page, user_id,
+                  get_authors_list, get_by_author,
+                  callback_name):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     al = get_authors_list(chat_id)
     if not al:
         return None
+
     ##################################
     # Клавиатура перехода по авторам #
 
     # ищем имя автора по номеру
     index_max = len(al) - 1
-    if author_num >= 0 and author_num <= index_max:
+    if 0 <= author_num <= index_max:
         file_author = al[author_num]
     else:
         file_author = al[0]
@@ -34,34 +45,36 @@ def authorlist_show_keyboard(chat_id, author_num, page, user_id,
     # Имена авторов для кнопок перехода
     author_name_next = ""
     author_name_back = ""
-    if author_num == 0 and author_num < index_max:
+    if 0 == author_num < index_max:
         author_name_next = al[author_num + 1]
-    elif author_num == index_max and author_num != 0:
+    elif index_max == author_num != 0:
         author_name_back = al[author_num - 1]
-    elif author_num > 0 and author_num < index_max:
+    elif 0 < author_num < index_max:
         author_name_next = al[author_num + 1]
         author_name_back = al[author_num - 1]
 
     # Сами кнопки
     btn_author_back = InlineKeyboardButton(
-        f"< {author_name_back}",
+        f"< [{author_num}] {author_name_back}",
         callback_data=f"{call_data} authorback")
+
     btn_author_info = InlineKeyboardButton(
-        file_author,
+        f"[{author_num+1}] {file_author}",
         callback_data=f"{call_data} authorinfo")
+
     btn_author_next = InlineKeyboardButton(
-        f"{author_name_next} >",
+        f"[{author_num+2}] {author_name_next} >",
         callback_data=f"{call_data} authornext")
 
     # Добавление этих кнопок в ряд клавиатуры
     keyboard = []
     keyboard_author = []
 
-    if author_num == 0 and author_num < index_max:
+    if 0 == author_num < index_max:
         keyboard_author += [btn_author_info, btn_author_next]
-    elif author_num == index_max and author_num != 0:
+    elif index_max == author_num != 0:
         keyboard_author += [btn_author_back, btn_author_info]
-    elif author_num > 0 and author_num < index_max:
+    elif 0 < author_num < index_max:
         keyboard_author += [
             btn_author_back, btn_author_info, btn_author_next
         ]
@@ -70,27 +83,29 @@ def authorlist_show_keyboard(chat_id, author_num, page, user_id,
 
     keyboard.append(keyboard_author)
 
-    #################################### 
+    ####################################
     # Клавиатура перехода по страницам #
 
     # Кнопки
     btn_page_back = InlineKeyboardButton(
         "< Назад",
         callback_data=f"{call_data} pageback")
+
     btn_page_info = InlineKeyboardButton(
         f"{page+1}/{page_max+1}",
         callback_data=f"{call_data} pageinfo")
+
     btn_page_next = InlineKeyboardButton(
         "Вперед >",
         callback_data=f"{call_data} pagenext")
 
     # Добавление этих кнопок во второй ряд клавиатуры
     keyboard_page = []
-    if page == 0 and page < page_max:
+    if 0 == page < page_max:
         keyboard_page += [btn_page_info, btn_page_next]
-    elif page == page_max and page != 0:
+    elif page_max == page != 0:
         keyboard_page += [btn_page_back, btn_page_info]
-    elif page > 0 and page < page_max:
+    elif 0 < page < page_max:
         keyboard_page += [btn_page_back, btn_page_info, btn_page_next]
     else:
         keyboard_page += [btn_page_info]
@@ -100,10 +115,14 @@ def authorlist_show_keyboard(chat_id, author_num, page, user_id,
     reply_markup = InlineKeyboardMarkup(keyboard)
     return reply_markup
 
-async def authorlist_show_callback(update, context,
-                                   get_reply_text,
-                                   get_reply_markup):
-    """Функция, отвечающая на коллбэки от нажатия кнопок /quotelist."""
+#############
+# Callback  #
+#############
+
+async def callback(update, context,
+                   get_reply_text,
+                   get_reply_markup):
+    """Функция, отвечающая на коллбэки от нажатия кнопок."""
     call_data = update.callback_query.data.split()
     call_chat = call_data[1]
     call_author = int(call_data[2])
@@ -140,16 +159,19 @@ async def authorlist_show_callback(update, context,
         call_chat, call_author, call_page, call_user)
     await update.callback_query.edit_message_text(
         out_message, reply_markup=markup)
-    return
 
-def authorlist_show_text(chat_id, author_num, page,
-                         get_authors_list, get_by_author,
-                         list_name):
-    """Возвращает текст сообщения /quotelist"""
+##############
+# List text  #
+##############
+
+def get_text(chat_id, author_num, page,
+             get_authors_list, get_by_author,
+             list_name):
+    """Возвращает текст сообщения"""
 
     if al := get_authors_list(chat_id):
         # найти автора по номеру из списка всех авторов чата
-        if author_num >= 0 and author_num < len(al):
+        if 0 <= author_num < len(al):
             file_author = al[author_num]
         else:
             file_author = al[0]

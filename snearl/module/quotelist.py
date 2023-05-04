@@ -4,25 +4,23 @@
 а затем отправлять в чат через поиск инлайн.
 """
 
-import io, re, textwrap
-
 from telegram import InlineQueryResultCachedSticker
-from telegram.ext import (
-    InlineQueryHandler, CommandHandler, CallbackQueryHandler
-)
+from telegram.ext import CommandHandler, CallbackQueryHandler
 
-import snearl.module.utils as utils
-import snearl.module.keyboard as kbrd
-import snearl.module.quotelist_db as db
-import snearl.module.quotelist_draw as drawing
+from snearl.module import utils
 from snearl.instance import app, help_messages
+
+import snearl.module.authormodel as datamodel
+import snearl.module.authormodel_kbrd as kbrd
+from snearl.module.quotelist_db import db
+import snearl.module.quotelist_draw as drawing
 
 ####################
 # main             #
 ####################
 
 def main():
-    db.quotelist_create_table()
+    db.create_table()
     db.con.commit()
 
     help_messages.append("""
@@ -42,18 +40,19 @@ def main():
     app.add_handler(CommandHandler("quote_delete", quote_delete))
     app.add_handler(CommandHandler("quotelist", quotelist_show))
 
-    # инлайн
+    # коллбек /quotelist
     app.add_handler(CallbackQueryHandler(
         quotelist_show_callback,
         pattern="^quotelist"))
-
-    return
 
 ####################
 # inline functions #
 ####################
 
-def quote_inline_query(i, e):
+def quote_search(query, offset, limit):
+    return db.search(query, offset, limit)
+
+def quote_query_result(i, e):
     """Функция возвращающая InlineQueryResult."""
     return InlineQueryResultCachedSticker(
         id=str(i),
@@ -67,41 +66,60 @@ def quote_inline_query(i, e):
 async def quote_add(update, context):
     """Команда добавления новой цитаты."""
 
-    msg = update.message.reply_to_message
-
     if await utils.check_access(update):
         return
 
-    if msg is None:
+    message = update.message.reply_to_message
+    args = context.args
+
+    if not message:
         await update.message.reply_text(
             "Нужно отправить команду ответом на сообщение.")
         return
 
-    if (msg.text is None
-        and msg.sticker is None
-        and not msg.photo):
+    # переменные для рисования цитаты
+    quote_text = utils.get_description(message)
+    quote_nickname = utils.get_sender(message)
+    quote_avatar = await utils.get_avatar(message)
+    quote_picture = await utils.get_picture(message)
 
+    if not (quote_text or quote_picture):
         await update.message.reply_text(
             "Цитируемое сообщение должно содержать "\
             "либо текст, либо фото или стикер.")
         return
 
-    if not msg.text and not context.args:
+    # имя автора записи в бд
+    file_author = utils.validate(quote_nickname)
+    if args and not file_author:
+        file_author = utils.validate(args[0])
+        args = args[1:]
+
+    if not file_author:
         await update.message.reply_markdown_v2(
-            "Нужно указать описание, например:\n"\
-            "`/quote_add Ну шо вы ребятки`")
+            "Введите имя вручную, например\:\n"\
+            "`/quote_add Эрл`")
         return
 
-    # переменные для рисования цитаты
-    quote_text = _quote_get_msg_text(msg)
-    quote_nickname = _quote_get_msg_nickname(msg)
-    quote_avatar = await _quote_get_msg_avatar(msg)
-    quote_picture = await _quote_get_msg_picture(msg)
+    # описание записи в бд
+    file_desc = utils.validate(quote_text)
+    if args and not file_desc:
+        file_desc = utils.validate(" ".join(context.args))
+
+    if not file_desc:
+        await update.message.reply_markdown_v2(
+            "Введите описание вручную, например\:\n"\
+            "`/quote_add Продал все приставки`")
+        return
 
     # сам файл цитаты в виде BytesIO
-    quote_img = io.BytesIO()
-    drawing.quote_draw(quote_img, quote_nickname,
-                       quote_avatar, quote_text, quote_picture)
+    try:
+        quote_img = drawing.draw_quote(quote_nickname, quote_avatar,
+                                       quote_text, quote_picture)
+    except Exception:
+        await update.message.reply_text(
+            "Данный тип сообщений не поддерживается.")
+        return
 
     # эти файлы тоже BytesIO, закрываем их
     if quote_avatar:
@@ -115,74 +133,19 @@ async def quote_add(update, context):
     # переменные для БД
     chat_id = update.effective_chat.id
     file_id = quote_reply.sticker.file_id
-    if msg.text:
-        file_desc = textwrap.shorten(msg.text, width=50, placeholder="...")
-    else:
-        file_desc = " ".join(context.args)[:50]
 
     # добавляем в базу данных
-    db.quotelist_create_table()
-    db.quotelist_add(chat_id, file_id,
-                     quote_nickname, file_desc,
-                     quote_img.getbuffer())
+    db.create_table()
+    db.add(chat_id, file_id,
+           file_author, file_desc,
+           quote_img.getbuffer())
     db.con.commit()
 
     # закрыть последний оставшийся BytesIO
     quote_img.close()
 
     await update.message.reply_text(
-        f"В сборник афоризмов {quote_nickname} успешно добавлен {file_desc}")
-    return
-
-###################
-# Функции-геттеры #
-###################
-
-def _quote_get_msg_nickname(msg):
-    if msg.forward_from:
-        n =  msg.forward_from.full_name
-    elif msg.forward_sender_name:
-        n =  msg.forward_sender_name 
-    elif msg.from_user:
-        n = msg.from_user.full_name
-    return textwrap.shorten(n, width=35, placeholder="...")
-
-def _quote_get_msg_text(msg):
-    if msg.text:
-        return "\n".join(textwrap.wrap(msg.text, width=35, max_lines=15))
-    return None
-
-async def _quote_get_msg_picture(msg):
-    quote_picture = None
-    file_id = None
-
-    if msg.photo:
-        file_id = msg.photo[-1].file_id
-    if msg.sticker:
-        file_id = msg.sticker.file_id
-
-    if file_id:
-        quote_picture = io.BytesIO()
-        f = await app.bot.get_file(file_id)
-        await f.download_to_memory(quote_picture)
-
-    return quote_picture
-
-async def _quote_get_msg_avatar(msg):
-    quote_avatar = None
-    pl = None
-
-    if msg.forward_from:
-        pl = await msg.forward_from.get_profile_photos(limit=1)
-    elif msg.from_user and not msg.forward_date:
-        pl = await msg.from_user.get_profile_photos(limit=1)
-
-    if pl and pl.total_count > 0:
-        p = pl.photos[0][0]
-        quote_avatar = io.BytesIO()
-        f = await app.bot.get_file(p.file_id)
-        await f.download_to_memory(quote_avatar)
-    return quote_avatar
+        f"В сборник афоризмов {file_author} успешно добавлено {file_desc}")
 
 ####################
 # /quote_delete    #
@@ -190,36 +153,13 @@ async def _quote_get_msg_avatar(msg):
 
 async def quote_delete(update, context):
     """Команда удаления цитаты."""
-    if await utils.check_access(update):
-        return
-
-    try:
-        chat_id = update.effective_chat.id
-        file_author = context.args[0]
-        file_num = int(context.args[1]) - 1
-
-        # взять цитату по указанному в команде номеру
-        l = db.quotelist_by_author(chat_id, file_author)
-        if file_num < 0 or file_num > len(l) - 1:
-            raise Exception
-
-        entry = l[file_num]
-        file_id, file_desc = entry[1], entry[3]
-
-        db.quotelist_delete(file_id)
-        db.con.commit()
-
-    except Exception as e:
-        await update.message.reply_markdown_v2(
-            f"{e}\nНужно указать имя автора цитаты и "\
-            "номер сообщения из /quotelist, например:\n"\
-            "`/quote_delete Эрл 15`\n"\
-            "Учтите, что имя чувствительно к регистру\.")
-        return
-
-    await update.message.reply_text(
-        f"Из сборника афоризмов {file_author} успешно удален {file_desc}")
-    return
+    file_author, file_desc = await datamodel.entry_delete(
+        update, context,
+        db.authors_list,
+        db.by_author,
+        db.delete,
+        "quote", "сборника афоризмов"
+    )
 
 ####################
 # /quotelist       #
@@ -231,27 +171,25 @@ async def quotelist_show(update, context):
     markup = _quotelist_show_keyboard(
         update.effective_chat.id, 0, 0, update.effective_user.id)
     await update.message.reply_text(out_message, reply_markup=markup)
-    return
 
 async def quotelist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /quotelist."""
-    await kbrd.authorlist_show_callback(update, context,
-                                        _quotelist_show_text,
-                                        _quotelist_show_keyboard)
-    return
+    await kbrd.callback(update, context,
+                        _quotelist_show_text,
+                        _quotelist_show_keyboard)
 
 def _quotelist_show_text(chat_id, author_num, page):
     """Возвращает текст сообщения /quotelist"""
-    e = kbrd.authorlist_show_text(chat_id, author_num, page,
-                                  db.quotelist_authors_list,
-                                  db.quotelist_by_author,
-                                  "Список цитат")
+    e = kbrd.get_text(chat_id, author_num, page,
+                      db.authors_list,
+                      db.by_author,
+                      "Список цитат")
     return e
 
 def _quotelist_show_keyboard(chat_id, author_num, page, user_id):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
-    e = kbrd.authorlist_show_keyboard(chat_id, author_num, page, user_id,
-                                      db.quotelist_authors_list,
-                                      db.quotelist_by_author,
-                                      "quotelist")
+    e = kbrd.show_keyboard(chat_id, author_num, page, user_id,
+                           db.authors_list,
+                           db.by_author,
+                           "quotelist")
     return e

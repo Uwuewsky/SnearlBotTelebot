@@ -1,7 +1,7 @@
 """
 Модуль черного списка.
-Позволяет блокировать группу, чтобы бот
-автоматически удалял репосты из нее.
+Позволяет блокировать группу или пользователя,
+чтобы бот автоматически удалял репосты.
 """
 
 import math
@@ -11,15 +11,15 @@ from telegram.ext import (
     MessageHandler, CommandHandler, CallbackQueryHandler, filters)
 
 from snearl.instance import app, help_messages
+from snearl.module import utils
 import snearl.module.blacklist_db as db
-import snearl.module.utils as utils
 
 #####################
 # main              #
 #####################
 
 def main():
-    db.blacklist_create_table()
+    db.create_table()
     db.con.commit()
 
     help_messages.append("""
@@ -38,26 +38,18 @@ def main():
         show_blacklist_callback,
         pattern="^blacklist"))
 
-    return
-
 #####################
 # delete handler    #
 #####################
 
 async def delete_repost(update, context):
     """Функция удаления сообщения, репостнутой из чата в черном списке."""
-    if update.message.forward_from_chat is None:
-        return
+    user_name = utils.get_sender_username(update.message)
 
-    group_id = update.message.forward_from_chat.id
-    group_desc = update.message.forward_from_chat.effective_name
-
-    if db.blacklist_get(update.effective_chat.id, group_id):
+    if db.has(update.effective_chat.id, user_name):
         await update.message.delete()
         await update.effective_chat.send_message(
-            f"Репост из {group_desc} удален.")
-        return
-    return
+            f"Репост от {user_name} удален.")
 
 #####################
 # /block            #
@@ -68,29 +60,23 @@ async def block_group(update, context):
     if await utils.check_access(update):
         return
 
-    if update.message.reply_to_message is None:
+    if not update.message.reply_to_message:
         await update.message.reply_text(
             "Нужно отправить команду ответом на репост из группы.")
-        return 
-
-    if update.message.reply_to_message.forward_from_chat is None:
-        await update.message.reply_text("Это не репост из группы.")
         return
 
     chat_id = update.effective_chat.id
-    group_id = update.message.reply_to_message.forward_from_chat.id
-    group_desc = update.message.reply_to_message.forward_from_chat.effective_name
+    user_name = utils.get_sender_username(update.message.reply_to_message)
 
-    if db.blacklist_get(chat_id, group_id):
-        await update.message.reply_text(f"{group_desc} уже в блеклисте.")
+    if db.has(chat_id, user_name):
+        await update.message.reply_text(f"{user_name} уже в блеклисте.")
         return
-    else:
-        db.blacklist_create_table()
-        db.blacklist_add(chat_id, group_id, group_desc)
-        db.con.commit()
-        await update.message.reply_text(
-            f"Репосты из {group_desc} добавлены в черный список.")
-    return
+
+    db.create_table()
+    db.add(chat_id, user_name)
+    db.con.commit()
+    await update.message.reply_text(
+        f"Репосты от {user_name} добавлены в черный список.")
 
 #####################
 # /allow            #
@@ -103,19 +89,18 @@ async def allow_group(update, context):
 
     try:
         index = int(context.args[0]) - 1
-        entry = db.blacklist_by_chat(update.effective_chat.id)[index]
-        group_id, group_desc = entry[1], entry[2]
+        entry = db.by_chat(update.effective_chat.id)[index]
+        user_name = entry[1]
 
-        db.blacklist_delete(update.effective_chat.id, group_id)
+        db.delete(update.effective_chat.id, user_name)
         db.con.commit()
 
         await update.message.reply_text(
-            f"{group_desc} удален из черного списка.")
+            f"{user_name} удален из черного списка.")
 
     except Exception:
         await update.message.reply_text(
             "Нужно указать номер чата из списка /blacklist.")
-    return
 
 #####################
 # /blacklist        #
@@ -127,7 +112,6 @@ async def show_blacklist(update, context):
     markup = _show_blacklist_keyboard(
         update.effective_chat.id, 0, update.effective_user.id)
     await update.message.reply_text(out_message, reply_markup=markup)
-    return
 
 async def show_blacklist_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /blacklist."""
@@ -155,11 +139,10 @@ async def show_blacklist_callback(update, context):
 
     await update.callback_query.edit_message_text(
         out_message, reply_markup=markup)
-    return
 
 def _show_blacklist_keyboard(chat_id, page, user_id):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
-    bl = db.blacklist_by_chat(chat_id)
+    bl = db.by_chat(chat_id)
     if not bl:
         return None
 
@@ -177,11 +160,11 @@ def _show_blacklist_keyboard(chat_id, page, user_id):
                                     callback_data=f"{call_data} pagenext")
 
     keyboard = []
-    if page == 0 and page < page_max:
+    if 0 == page < page_max:
         keyboard += [btn_info, btn_next]
-    elif page == page_max and page != 0:
+    elif page_max == page != 0:
         keyboard += [btn_back, btn_info]
-    elif page > 0 and page < page_max:
+    elif 0 < page < page_max:
         keyboard += [btn_back, btn_info, btn_next]
     else:
         keyboard += [btn_info]
@@ -192,7 +175,7 @@ def _show_blacklist_keyboard(chat_id, page, user_id):
 
 def _show_blacklist_text(chat_id, page):
     """Функция, возвращающая текст сообщения с постраничной клавиатурой."""
-    if bl := db.blacklist_by_chat(chat_id):
+    if bl := db.by_chat(chat_id):
         s = "Список заблокированных чатов:\n\n"
         offset = page * 25
 
@@ -200,7 +183,7 @@ def _show_blacklist_text(chat_id, page):
             offset = 0
 
         for i, e in enumerate(bl[offset:offset+25], start=offset+1):
-            s += f"{i}) {e[2]}\n"
+            s += f"{i}) {e[1]}\n"
 
         return s
     return "Список заблокированных чатов пуст."

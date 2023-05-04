@@ -23,7 +23,6 @@ con.create_function("LOWER", 1, lambda v: v.lower()) # для поиска
 
 def table_clear(table):
     cur.execute(f"DELETE FROM {table}")
-    return
 
 ####################
 # Таблица Settings #
@@ -39,11 +38,10 @@ def settings_create_table():
     key TEXT,
     value TEXT
     )""")
-    return
 
 def settings_get(key):
     res = cur.execute("SELECT value FROM Settings WHERE key=?", (key,))
-    if r:= res.fetchone():
+    if r := res.fetchone():
         return r[0]
     return None
 
@@ -52,9 +50,7 @@ def settings_set(key, value):
     cur.execute(f"DELETE FROM Settings WHERE key='{key}'")
     cur.execute("INSERT INTO Settings VALUES (?, ?)", (key, value))
     con.commit()
-    return
 
 def settings_delete(key):
     cur.execute(f"DELETE FROM Settings WHERE key='{key}'")
     con.commit()
-    return

@@ -1,3 +1,7 @@
+"""
+База данных черного списка
+"""
+
 import snearl.database as db
 
 cur = db.cur
@@ -7,61 +11,53 @@ con = db.con
 # Таблица Blacklist #
 #####################
 
-# Создание таблицы
-###################
-
-def blacklist_create_table():
+def create_table():
+    """Создание таблицы"""
     cur.execute("""CREATE TABLE IF NOT EXISTS Blacklist (
     chat_id TEXT,
-    group_id TEXT,
-    group_desc TEXT
+    user_name TEXT
     )""")
-    return
 
-# Добавление записи
-###################
+def add(chat_id, user_name):
+    """Добавление записи"""
+    cur.execute("INSERT INTO Blacklist VALUES (?, ?)",
+                (chat_id, user_name))
 
-def blacklist_add(chat_id, group_id, group_desc):
-    cur.execute("INSERT INTO Blacklist VALUES (?, ?, ?)",
-                (chat_id, group_id, group_desc))
-    return
+def delete(chat_id, user_name):
+    """Удаление записи"""
+    cur.execute("DELETE FROM Blacklist WHERE chat_id=? AND user_name=?",
+                (chat_id, user_name))
 
-# Удаление записи
-#################
+def has(chat_id, user_name):
+    """Имеется ли запись в БД по @имени"""
+    res = cur.execute("SELECT * FROM Blacklist "\
+                      "WHERE chat_id=? AND user_name=?",
+                      (chat_id, user_name))
+    if r := res.fetchone():
+        return True
+    return False
 
-def blacklist_delete(chat_id, group_id):
-    cur.execute("DELETE FROM Blacklist WHERE chat_id=? AND group_id=?",
-                (chat_id, group_id))
-    return
-
-# Функции-геттеры
-#################
-
-def blacklist_get(chat_id, group_id):
-    res = cur.execute("SELECT * FROM Blacklist WHERE chat_id=? AND group_id=?",
-                      (chat_id, group_id))
-    if r:= res.fetchone():
-        return r[0]
-    return None
-
-def blacklist_by_chat(chat_id):
-    res = cur.execute("SELECT * FROM Blacklist WHERE chat_id=?", (chat_id, ))
+def get_all():
+    """Все записи таблицы"""
+    res = cur.execute("SELECT * FROM Blacklist "\
+                      "ORDER BY user_name")
     return res.fetchall()
 
-# Функция миграции данных в новый чат
-#####################################
+def by_chat(chat_id):
+    """Все записи чата"""
+    res = cur.execute("SELECT * FROM Blacklist "\
+                      "WHERE chat_id=? "\
+                      "ORDER BY user_name",
+                      (chat_id, ))
+    return res.fetchall()
 
-def blacklist_migration(old_chat, new_chat):
-    res = cur.execute("UPDATE Blacklist "\
-                      "SET chat_id=?"\
-                      "WHERE chat_id=?",
-                      (new_chat, old_chat))
-    return
+def migration(old_chat, new_chat):
+    """Функция миграции данных в новый чат"""
+    cur.execute("UPDATE Blacklist "\
+                "SET chat_id=?"\
+                "WHERE chat_id=?",
+                (new_chat, old_chat))
 
-# Функция удаления все данных для чата
-######################################
-
-def blacklist_clear_by_chat(chat_id):
+def clear_by_chat(chat_id):
+    """Функция удаления все данных для чата"""
     cur.execute("DELETE FROM Blacklist WHERE chat_id=?", (chat_id,))
-    return
-
