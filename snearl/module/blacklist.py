@@ -44,12 +44,19 @@ def main():
 
 async def delete_repost(update, context):
     """Функция удаления сообщения, репостнутой из чата в черном списке."""
-    user_name = utils.get_sender_username(update.message)
+    if update.message is None:
+        return # опоздавшее обновление; сообщение уже удалено
 
-    if db.has(update.effective_chat.id, user_name):
+    user_name = utils.get_sender_username(update.message)
+    user_title = utils.get_sender_title(update.message)
+
+    if r := db.has(update.effective_chat.id, user_name, user_title):
+        if not (user_name, user_title) == (r[1], r[2]):
+            db.update(update.effective_chat.id, user_name, user_title)
+            db.con.commit()
         await update.message.delete()
         await update.effective_chat.send_message(
-            f"Репост от {user_name} удален.")
+            f"Репост из {user_title or user_name} удален.")
 
 #####################
 # /block            #
@@ -67,16 +74,18 @@ async def block_group(update, context):
 
     chat_id = update.effective_chat.id
     user_name = utils.get_sender_username(update.message.reply_to_message)
+    user_title = utils.get_sender_title(update.message.reply_to_message)
 
-    if db.has(chat_id, user_name):
-        await update.message.reply_text(f"{user_name} уже в блеклисте.")
+    if db.has(chat_id, user_name, user_title):
+        await update.message.reply_text(
+            f"{user_title or user_name} уже в блеклисте.")
         return
 
     db.create_table()
-    db.add(chat_id, user_name)
+    db.add(chat_id, user_name, user_title)
     db.con.commit()
     await update.message.reply_text(
-        f"Репосты от {user_name} добавлены в черный список.")
+        f"Репосты из {user_title or user_name} добавлены в черный список.")
 
 #####################
 # /allow            #
@@ -90,13 +99,13 @@ async def allow_group(update, context):
     try:
         index = int(context.args[0]) - 1
         entry = db.by_chat(update.effective_chat.id)[index]
-        user_name = entry[1]
+        user_name, user_title = entry[1], entry[2]
 
-        db.delete(update.effective_chat.id, user_name)
+        db.delete(update.effective_chat.id, user_name, user_title)
         db.con.commit()
 
         await update.message.reply_text(
-            f"{user_name} удален из черного списка.")
+            f"{user_title or user_name} удален из черного списка.")
 
     except Exception:
         await update.message.reply_text(
@@ -183,7 +192,7 @@ def _show_blacklist_text(chat_id, page):
             offset = 0
 
         for i, e in enumerate(bl[offset:offset+25], start=offset+1):
-            s += f"{i}) {e[1]}\n"
+            s += f"{i}) {e[2] or e[1]}\n"
 
         return s
     return "Список заблокированных чатов пуст."

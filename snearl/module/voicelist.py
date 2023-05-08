@@ -90,7 +90,7 @@ async def voice_add(update, context):
 
     # имя автора записи в бд
     file_author = utils.validate(
-        utils.get_sender(message))
+        utils.get_sender_title_short(message))
     if args and not file_author:
         file_author = utils.validate(args[0])
         args = args[1:]

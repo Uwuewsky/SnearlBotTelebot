@@ -65,8 +65,13 @@ def get_description(message):
             res.append(s)
     return "\n".join(res[:max_lines])
 
-def get_sender(message):
-    """Возвращает сокращенное имя отправителя."""
+def get_sender_title_short(message):
+    s = get_sender_title(message)
+    return textwrap.shorten(s, width=35, placeholder="...")
+
+def get_sender_title(message):
+    """Возвращает имя отправителя."""
+    s = None
     if message.forward_from:
         s = message.forward_from.full_name
     elif message.forward_sender_name:
@@ -75,24 +80,20 @@ def get_sender(message):
         s = message.forward_from_chat.effective_name
     elif message.from_user:
         s = message.from_user.full_name
-    else:
-        s = "U.N.Owen"
-    return textwrap.shorten(s, width=35, placeholder="...")
+    return s
 
 def get_sender_username(message):
-    """Возвращает @имя_пользователя или имя целиком"""
-    # другой порядок и параметры чем в get_sender
-    if message.forward_from_chat:
-        return (message.forward_from_chat.username
-                or message.forward_from_chat.effective_name)
+    """Возвращает @тег_пользователя"""
+    s = None
     if message.forward_from:
-        return message.forward_from.name
+        s = message.forward_from.username
     elif message.forward_sender_name:
-        return message.forward_sender_name
+        s = None
+    elif message.forward_from_chat:
+        s = message.forward_from_chat.username
     elif message.from_user:
-        return message.from_user.full_name
-    else:
-        return "U.N.Owen"
+        s = message.from_user.username
+    return s
 
 def validate(text):
     """Убирает из имени все символы кроме букв, цифр и подчеркивания."""
@@ -131,7 +132,10 @@ async def get_avatar(message):
         if chat.photo:
             return await download_file(chat.photo.small_file_id)
 
-    elif message.from_user and not message.forward_date:
+    elif message.forward_sender_name:
+        return avatar
+
+    elif message.from_user:
         pl = await message.from_user.get_profile_photos(limit=1)
 
     if pl and pl.total_count > 0:

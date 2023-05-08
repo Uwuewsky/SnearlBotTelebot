@@ -2,7 +2,7 @@
 Модуль с функциями рисования цитаты.
 """
 
-import io
+import io, hashlib
 
 from PIL import Image, ImageDraw, ImageFont
 import snearl.database as db
@@ -22,10 +22,11 @@ def draw_quote(nickname, avatar=None, text=None, picture=None):
     img = Image.new("RGBA", (512, 1536), (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
 
-    avatar_size = _draw_avatar(img, draw, avatar)
+    avatar_size = _draw_avatar(img, draw, avatar, nickname)
 
     # отступ сообщения (верхний правый угол аватарки)
-    padding = 5 if avatar else 0
+    padding = 5
+
     message_margin = (avatar_size[3] + padding, avatar_size[1])
 
     message_size = _draw_message(img, draw, nickname,
@@ -45,10 +46,9 @@ def draw_quote(nickname, avatar=None, text=None, picture=None):
         img.save(file_bytes, format="webp", lossless=False, quality=80)
     return file_bytes
 
-def _draw_avatar(img, draw, avatar):
+def _draw_avatar(img, draw, avatar, nickname):
     if not avatar:
-        # габариты аватарки
-        return (0, 0, 0, 0)
+        avatar = _draw_fallback_avatar(nickname)
 
     size = (48, 48)
 
@@ -71,6 +71,32 @@ def _draw_avatar(img, draw, avatar):
 
     # возвращаем размеры аватарки (x1, y1, x2, y2)
     return (0, 0, size[0], size[1])
+
+def _draw_fallback_avatar(nickname):
+    # взять цвет по хэшу никнейма
+    index = int("".join(filter(str.isdigit,
+                               hashlib.md5(nickname.encode())
+                               .hexdigest()))[:1] or "0") - 5
+    color = [
+        (240, 190, 140), # оранжевый
+        (240, 140, 140), # красный
+        (140, 240, 140), # зеленый
+        (190, 140, 240), # фиолетовый
+        (140, 190, 240)  # синий
+    ][index]
+
+    avatar = Image.new("RGBA", (100, 100), 0)
+    draw = ImageDraw.Draw(avatar)
+
+    draw.rectangle((0, 0, 100, 100), fill=color)
+    draw.ellipse((30, 20, 70, 60), fill=(255, 255, 255))
+    draw.ellipse((10, 65, 90, 135), fill=(255, 255, 255))
+
+    # вернуть аватар как BytesIO
+    file_bytes = io.BytesIO()
+    avatar.save(file_bytes, format="png", quality=80)
+    avatar.close()
+    return file_bytes
 
 def _draw_message(img, draw, nickname, text, picture, margin):
     h_margin, c_margin, full_size = _calculate_sizes(img, draw,

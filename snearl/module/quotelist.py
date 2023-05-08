@@ -79,7 +79,7 @@ async def quote_add(update, context):
 
     # переменные для рисования цитаты
     quote_text = utils.get_description(message)
-    quote_nickname = utils.get_sender(message)
+    quote_nickname = utils.get_sender_title_short(message)
     quote_avatar = await utils.get_avatar(message)
     quote_picture = await utils.get_picture(message)
 
@@ -153,7 +153,7 @@ async def quote_add(update, context):
 
 async def quote_delete(update, context):
     """Команда удаления цитаты."""
-    file_author, file_desc = await datamodel.entry_delete(
+    await datamodel.entry_delete(
         update, context,
         db.authors_list,
         db.by_author,
