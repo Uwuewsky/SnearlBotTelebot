@@ -65,6 +65,7 @@ def quote_query_result(i, e):
 
 async def quote_add(update, context):
     """Команда добавления новой цитаты."""
+
     if await utils.check_access(update):
         return
 
@@ -152,9 +153,6 @@ async def quote_add(update, context):
 
 async def quote_delete(update, context):
     """Команда удаления цитаты."""
-    if await utils.check_access(update):
-        return
-
     await datamodel.entry_delete(
         update, context,
         db.authors_list,

@@ -131,9 +131,6 @@ async def voice_add(update, context):
 
 async def voice_delete(update, context):
     """Команда удаления голосового сообщения."""
-    if await utils.check_access(update):
-        return
-
     await datamodel.entry_delete(
         update, context,
         db.authors_list,
