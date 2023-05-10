@@ -69,6 +69,19 @@ def get_sender_title_short(message):
     s = get_sender_title(message)
     return textwrap.shorten(s, width=35, placeholder="...")
 
+def get_sender_id(message):
+    """Возвращает id отправителя."""
+    s = None
+    if message.forward_from:
+        s = message.forward_from.id
+    elif message.forward_sender_name:
+        s = None
+    elif message.forward_from_chat:
+        s = message.forward_from_chat.id
+    elif message.from_user:
+        s = message.from_user.id
+    return s
+
 def get_sender_title(message):
     """Возвращает имя отправителя."""
     s = None

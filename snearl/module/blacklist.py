@@ -4,7 +4,7 @@
 чтобы бот автоматически удалял репосты.
 """
 
-import math
+import math, time
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -33,7 +33,7 @@ def main():
     app.add_handler(CommandHandler("allow", allow_group))
     app.add_handler(CommandHandler("blacklist", show_blacklist))
 
-    app.add_handler(MessageHandler(filters.FORWARDED, delete_repost))
+    app.add_handler(MessageHandler(filters.FORWARDED, delete_repost), group=5)
     app.add_handler(CallbackQueryHandler(
         show_blacklist_callback,
         pattern="^blacklist"))
@@ -50,13 +50,23 @@ async def delete_repost(update, context):
     user_name = utils.get_sender_username(update.message)
     user_title = utils.get_sender_title(update.message)
 
-    if r := db.has(update.effective_chat.id, user_name, user_title):
-        if not (user_name, user_title) == (r[1], r[2]):
-            db.update(update.effective_chat.id, user_name, user_title)
-            db.con.commit()
-        await update.message.delete()
+    res = db.has(update.effective_chat.id, user_name, user_title)
+
+    if not res:
+        return
+
+    await update.message.delete()
+
+    # обновить данные пользователя, если они изменены
+    if not (user_name, user_title) == (res[1], res[2]):
+        db.update(update.effective_chat.id, user_name, user_title)
+        db.con.commit()
+
+    # проверка: отправлять сообщение только раз в 5 секунд
+    if time.time() - context.chat_data.get("block_antispam", 0) > 5:
         await update.effective_chat.send_message(
             f"Репост из {user_title or user_name} удален.")
+    context.chat_data["block_antispam"] = time.time()
 
 #####################
 # /block            #

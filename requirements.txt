@@ -1,2 +1,2 @@
-python-telegram-bot >= 20.2
+python-telegram-bot[job-queue] >= 20.2
 Pillow >= 9.4.0

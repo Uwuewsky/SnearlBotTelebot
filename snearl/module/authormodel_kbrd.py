@@ -34,6 +34,7 @@ def show_keyboard(chat_id, author_num, page, user_id,
 
     # используем автора чтобы получить его список
     # и последнюю страницу для пролистывания их списка
+    page_max = 0
     if l := get_by_author(chat_id, file_author):
         page_max = max(0, math.ceil(len(l)/25) - 1)
     if page > page_max or page < 0:
