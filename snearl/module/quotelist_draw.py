@@ -92,6 +92,9 @@ def _draw_content(img, draw, nickname, content, margin):
     is_first = True
     # отступ между сообщениями
     message_margin = 7
+    # максимальная высота кластера в пикселях
+    # все последующие сообщения будут отброшены
+    max_height = 1500
     # список размеров сообщений
     size_list = []
 
@@ -113,6 +116,10 @@ def _draw_content(img, draw, nickname, content, margin):
                                            message, current_margin)
         except:
             continue
+
+        # bg_size[3] - нижняя Y-координата на картинке
+        if bg_size[3] >= max_height:
+            break
 
         # собственно рисование
         _draw_background(img, draw, bg_size)
@@ -258,16 +265,26 @@ def _draw_fallback_avatar(nickname):
 def _merge_clusters(strips):
     """Склеивает из отдельных кластеров цитату целиком"""
 
+    # максимальная высота отступа
+    # все последующие сообщения будут отброшены
+    max_offset = 2000
     # отступ между кластерами сообщений
     margin = 10
-    w = max(s.width for s in strips)
-    h = sum(s.height + margin for s in strips) - margin
+    img_w = max(s.width for s in strips)
+    img_h = sum(s.height + margin for s in strips) - margin
 
-    img = Image.new("RGBA", (w, h))
+    img = Image.new("RGBA", (img_w, img_h))
 
     offset = 0
+    crop_w = 0
     for strip in strips:
         img.paste(strip, (0, offset))
         offset += strip.height + margin
+        crop_w = max(crop_w, strip.width)
 
+        if offset >= max_offset:
+            break
+
+    crop_h = offset - margin
+    img = img.crop((0, 0, crop_w, crop_h))
     return img

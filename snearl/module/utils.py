@@ -59,7 +59,6 @@ def get_description(message):
     for s in text.splitlines():
         if len(s) > width:
             res += textwrap.wrap(s, width=width,
-                                 drop_whitespace=False,
                                  replace_whitespace=False)
         else:
             res.append(s)
@@ -123,13 +122,16 @@ async def get_picture(message):
     picture = None
     file_id = None
 
-    if message.photo:
-        file_id = message.photo[-1].file_id
-    if message.sticker:
-        file_id = message.sticker.file_id
+    try:
+        if message.photo:
+            file_id = message.photo[-1].file_id
+        if message.sticker:
+            file_id = message.sticker.file_id
 
-    if file_id:
-        picture = await download_file(file_id)
+        if file_id:
+            picture = await download_file(file_id)
+    except:
+        pass
 
     return picture
 
@@ -137,23 +139,26 @@ async def get_avatar(message):
     avatar = None
     pl = None
 
-    if message.forward_from:
-        pl = await message.forward_from.get_profile_photos(limit=1)
+    try:
+        if message.forward_from:
+            pl = await message.forward_from.get_profile_photos(limit=1)
 
-    elif message.forward_from_chat:
-        chat = await app.bot.get_chat(message.forward_from_chat.id)
-        if chat.photo:
-            return await download_file(chat.photo.small_file_id)
+        elif message.forward_from_chat:
+            chat = await app.bot.get_chat(message.forward_from_chat.id)
+            if chat.photo:
+                return await download_file(chat.photo.small_file_id)
 
-    elif message.forward_sender_name:
-        return avatar
+        elif message.forward_sender_name:
+            return avatar
 
-    elif message.from_user:
-        pl = await message.from_user.get_profile_photos(limit=1)
+        elif message.from_user:
+            pl = await message.from_user.get_profile_photos(limit=1)
 
-    if pl and pl.total_count > 0:
-        p = pl.photos[0][0]
-        avatar = await download_file(p.file_id)
+        if pl and pl.total_count > 0:
+            p = pl.photos[0][0]
+            avatar = await download_file(p.file_id)
+    except:
+        pass
 
     return avatar
 
