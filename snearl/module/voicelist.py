@@ -5,7 +5,12 @@
 """
 
 from telegram import InlineQueryResultCachedVoice
-from telegram.ext import CommandHandler, CallbackQueryHandler
+from telegram.ext import (
+    CommandHandler,
+    MessageHandler,
+    CallbackQueryHandler,
+    ConversationHandler,
+    filters)
 
 from snearl.module import utils
 from snearl.instance import app, help_messages
@@ -25,19 +30,29 @@ def main():
     help_messages.append("""
 *Хранить и отправлять инлайн списки голосовых сообщений*
   a\. Добавить войс:
-      `/voice_add [ИмяАвтора] [КраткоеОписание]`;
+      /voice\_add;
   b\. Открыть инлайн список войсов:
-      `@SnearlBot [ТекстЗапроса]`;
+      `@SnearlBot в [ТекстЗапроса]`;
       Запросом может быть _имя автора_ или _строка из описания_;
   c\. Удалить войс:
-      `/voice_delete [ИмяАвтора] [НомерВойса]`;
+      `/voice_delete [НомерАвтора] [НомерВойса]`;
   d\. Список войсов: /voicelist;
 """)
 
     # команды
-    app.add_handler(CommandHandler("voice_add", voice_add))
     app.add_handler(CommandHandler("voice_delete", voice_delete))
     app.add_handler(CommandHandler("voicelist", voicelist_show))
+
+    app.add_handler(ConversationHandler(
+        entry_points = [CommandHandler("voice_add", voice_start)],
+        states = {
+            1: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
+                               voice_get_info)],
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
+                                                         voice_end)]
+        },
+        fallbacks = [MessageHandler(filters.Regex("^отмена$"), voice_end)],
+        conversation_timeout = 30), group=3)
 
     # коллбек /voicelist
     app.add_handler(CallbackQueryHandler(
@@ -57,61 +72,68 @@ def voice_query_result(i, e):
         id=str(i),
         voice_file_id = e[1],
         title=f"{e[2]} — {e[3]}",
-        caption=f"{e[2]} — {e[3]}"
+        # текстовые подписи вида
+        # "Автор - Описание войса"
+        # убраны по умолчанию
+        # caption=f"{e[2]} — {e[3]}"
     )
 
 ####################
 # /voice_add       #
 ####################
-async def voice_add(update, context):
+
+# Start
+############
+
+async def voice_start(update, context):
     """Команда добавления нового голосового сообщения."""
-    message = update.message.reply_to_message
-    args = context.args
 
     if await utils.check_access(update):
-        return
+        return ConversationHandler.END
+
+    message = update.message.reply_to_message
 
     if not message:
         await update.message.reply_text(
             "Нужно отправить команду ответом на голосовое сообщение.")
-        return
+        return ConversationHandler.END
 
     if not message.voice:
         await update.message.reply_text("Это не голосовое сообщение.")
-        return
+        return ConversationHandler.END
 
-    chat_id = update.effective_chat.id
     file_id = message.voice.file_id
 
     if db.get(file_id):
         await update.message.reply_text(
             "Это голосовое сообщение уже в списке.")
-        return
+        return ConversationHandler.END
 
-    # имя автора записи в бд
-    file_author = utils.validate(
-        utils.get_sender_title_short(message))
-    if args and not file_author:
-        file_author = utils.validate(args[0])
-        args = args[1:]
+    # создать пользователю данные войса
+    file_desc = utils.validate(" ".join(context.args))
+    file_author = utils.validate(utils.get_sender_title_short(message))
 
-    if not file_author:
-        await update.message.reply_markdown_v2(
-            "Введите имя вручную, например\:\n"\
-            "`/voice_add Эрл`")
-        return
+    context.user_data["voice_author"] = file_author
+    context.user_data["voice_desc"] = file_desc
+    context.user_data["voice_id"] = file_id
 
-    # описание записи в бд
-    file_desc = utils.validate(
-        utils.get_description(message))
-    if args and not file_desc:
-        file_desc = utils.validate(" ".join(args))
+    # проверить наличие имени автора и описания
+    # если нет, то ждать ввода от пользователя
+    if res := await _voice_check_info(update, context):
+        return res # stage 1
 
-    if not file_desc:
-        await update.message.reply_markdown_v2(
-            "Введите описание вручную, например\:\n"\
-            "`/voice_add Продал все приставки`")
-        return
+    status = await voice_add(update, context)
+    return status
+
+# Add
+############
+
+async def voice_add(update, context):
+    """Команда добавления нового голосового сообщения."""
+    chat_id = update.effective_chat.id
+    file_id = context.user_data["voice_id"]
+    file_desc = context.user_data["voice_desc"]
+    file_author = context.user_data["voice_author"]
 
     # скачиваем войс и добавляем в БД
     file_blob = await utils.download_file(file_id)
@@ -122,8 +144,67 @@ async def voice_add(update, context):
     db.con.commit()
     file_blob.close()
 
+    context.user_data.clear()
     await update.message.reply_text(
         f"В дискографию {file_author} успешно добавлено {file_desc}")
+    return ConversationHandler.END
+
+# Stage 1
+############
+
+async def voice_get_info(update, context):
+    """
+    Функция получения имени автора/описания
+    если их нельзя извлечь из сообщения
+    """
+    # взять из текста сообщения
+    if not context.user_data["voice_author"]:
+        context.user_data["voice_author"] = utils.validate(
+        utils.get_description(update.message))
+
+    elif not context.user_data["voice_desc"]:
+        context.user_data["voice_desc"] = utils.validate(
+        utils.get_description(update.message))
+
+    # проверить наличие имени автора и описания
+    # если нет, то ждать ввода от пользователя
+    if res := await _voice_check_info(update, context):
+        return res # stage 1
+
+    status = await voice_add(update, context)
+    return status
+
+# Cancel
+############
+
+async def voice_end(update, context):
+    """Отмена команды добавления."""
+
+    context.user_data.clear()
+    await update.message.reply_text("Добавление войса отменено.")
+    return ConversationHandler.END
+
+# Вспомогательные функции
+###########################
+
+async def _voice_check_info(update, context):
+    """Проверяет наличие имени автора и описания."""
+
+    # если автора или описания нет, то
+    # ждем пока пользователь их введет
+    s = None
+    if not context.user_data["voice_author"]:
+        s = "имя автора"
+    elif not context.user_data["voice_desc"]:
+        s = "описание"
+    if not s:
+        return None
+
+    await update.message.reply_markdown_v2(
+        f"Напишите {s} для этого войса\.\n\n"\
+        "_Описание также можно ввести в команде: `/voice_add Продал все приставки`\n"\
+        "Напишите `отмена` чтобы отменить добавление войса_")
+    return 1 # stage 1
 
 ####################
 # /voice_delete    #

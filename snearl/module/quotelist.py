@@ -31,12 +31,12 @@ def main():
     help_messages.append("""
 *Хранить и отправлять стикеры\-цитаты инлайн*
   a\. Добавить цитату:
-      `/quote_add [ИмяАвтора] [КраткоеОписание]`;
+      /quote\_add;
   b\. Открыть инлайн список цитат:
-      `@SnearlBot [ТекстЗапроса]`;
+      `@SnearlBot ц [ТекстЗапроса]`;
       Запросом может быть _имя автора_ или _строка из описания_;
   c\. Удалить цитату:
-      `/quote_delete [ИмяАвтора] [НомерЦитаты]`;
+      `/quote_delete [НомерАвтора] [НомерЦитаты]`;
   d\. Список цитат: /quotelist;
 """)
 
@@ -47,9 +47,12 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points = [CommandHandler("quote_add", quote_start)],
         states = {
-            0: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"), quote_receive)],
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"), quote_get_info)],
-            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, quote_end)]
+            0: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
+                               quote_receive)],
+            1: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
+                               quote_get_info)],
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
+                                                         quote_end)]
         },
         fallbacks = [MessageHandler(filters.Regex("^отмена$"), quote_end)],
         conversation_timeout = 120), group=4)
@@ -100,7 +103,7 @@ async def quote_start(update, context):
 
     # ждать новых сообщений через ConversationHandler
     await update.message.reply_markdown_v2(
-        "Теперь отправьте до 10 сообщений чтобы сделать из них цитату\.\.\.\n\n"\
+        "Теперь отправьте до 10 сообщений чтобы сделать из них цитату\.\n\n"\
         "_Напишите `готово` чтобы закончить отправку и создать цитату "\
         "или `отмена` чтобы отменить создание цитаты_")
     return 0 # stage 0
@@ -138,12 +141,12 @@ async def quote_receive(update, context):
 async def quote_get_info(update, context):
     """
     Функция получения имени автора/описания
-    если их нельзя извлечь из сообщения
+    если их нельзя извлечь из сообщения.
     """
     # взять из текста сообщения
     if not context.user_data["quote_author"]:
         context.user_data["quote_author"] = utils.validate(
-        utils.get_sender_title_short(update.message))
+        utils.get_description(update.message))
 
     elif not context.user_data["quote_desc"]:
         context.user_data["quote_desc"] = utils.validate(

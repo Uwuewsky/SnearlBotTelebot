@@ -27,6 +27,7 @@ def main():
 
 async def chat_migration(update, context):
     """Заменяет ID чата на актуальный когда тип группы меняется."""
+    context.application.migrate_chat_data(message=update.message)
     old_chat = update.message.migrate_from_chat_id
     new_chat = update.message.migrate_to_chat_id
     chat_migrate(old_chat, new_chat)
@@ -42,6 +43,7 @@ async def bot_status_changed(update, context):
     status = update.my_chat_member.new_chat_member.status
 
     if status in [ChatMemberStatus.BANNED, ChatMemberStatus.LEFT]:
+        context.chat_data.clear()
         db_b.clear_by_chat(update.effective_chat.id)
         db_v.clear_by_chat(update.effective_chat.id)
         db_q.clear_by_chat(update.effective_chat.id)

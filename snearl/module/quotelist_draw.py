@@ -36,7 +36,7 @@ def draw_quote(message_list):
 
     # сохраняем в BytesIO
     file_bytes = io.BytesIO()
-    quote_img.save(file_bytes, format="webp", lossless=False, quality=80)
+    quote_img.save(file_bytes, format="webp", lossless=False, quality=90)
     return file_bytes
 
 #############################
@@ -128,6 +128,7 @@ def _draw_content(img, draw, nickname, content, margin):
         min(s[1] for s in size_list),
         max(s[2] for s in size_list),
         max(s[3] for s in size_list))
+
     return full_size
 
 def _get_sizes(img, draw, nickname, content, margin):
@@ -158,12 +159,12 @@ def _get_sizes(img, draw, nickname, content, margin):
     return header_margin, message_margin, full_size
 
 def _draw_background(img, draw, size):
-    color = (36, 31, 49, 255)
+    color = (35, 35, 50, 255)
     radius = 10
     draw.rounded_rectangle(size, radius=radius, fill=color)
 
 def _draw_nickname(img, draw, nickname, margin, skip=False):
-    color = (153, 193, 241)
+    color = (160, 200, 255)
 
     # вернуть размеры заголовка, ничего не рисуя
     if skip:
@@ -180,7 +181,7 @@ def _draw_message(img, draw, content, margin, skip=False):
     return size
 
 def _draw_text(img, draw, text, margin, skip=False):
-    color = (238, 238, 238)
+    color = (245, 245, 245)
     if skip:
         return draw.multiline_textbbox(margin, text, font=content_font)
     draw.multiline_text(margin, text,

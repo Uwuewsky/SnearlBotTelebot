@@ -2,6 +2,9 @@
 Главный модуль приложения, базовых команд и функций.
 """
 
+import logging
+from logging.handlers import RotatingFileHandler
+
 from telegram import Update
 from telegram.ext import Application, CommandHandler
 
@@ -28,13 +31,18 @@ async def send_info(update, context):
 ########################
 
 def start_bot():
+    handler1 = RotatingFileHandler(db.data_dir / "log.txt",
+                                   maxBytes=100*1024,
+                                   backupCount=1,
+                                   encoding="utf-8")
+    handler2 = logging.StreamHandler()
+    logging.basicConfig(format="[%(levelname)s] %(asctime)s: %(message)s",
+                        level=logging.WARNING, handlers=[handler1, handler2])
+
     app.add_handler(CommandHandler("start", send_help))
     app.add_handler(CommandHandler("help", send_help))
     app.add_handler(CommandHandler("info", send_info))
 
-    # каждый отдельный импорт
-    # можно отключить/подключить
-    # для отдельной функциональности
     import snearl.module.blacklist
     snearl.module.blacklist.main()
 
