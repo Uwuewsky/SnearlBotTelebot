@@ -19,9 +19,6 @@ import snearl.module.blacklist_db as db
 #####################
 
 def main():
-    db.create_table()
-    db.con.commit()
-
     help_messages.append("""
 *Удалять репосты из заблокированных чатов*
   a\. Заблокировать чат: /block;
@@ -57,15 +54,10 @@ async def delete_repost(update, context):
 
     await update.message.delete()
 
-    # обновить данные пользователя, если они изменены
-    if not (user_name, user_title) == (res[1], res[2]):
-        db.update(update.effective_chat.id, user_name, user_title)
-        db.con.commit()
-
     # проверка: отправлять сообщение только раз в 5 секунд
     if time.time() - context.chat_data.get("block_antispam", 0) > 5:
         await update.effective_chat.send_message(
-            f"Репост из {user_title or user_name} удален.")
+            f"Репост из {user_title} удален.")
     context.chat_data["block_antispam"] = time.time()
 
 #####################
@@ -88,14 +80,14 @@ async def block_group(update, context):
 
     if db.has(chat_id, user_name, user_title):
         await update.message.reply_text(
-            f"{user_title or user_name} уже в блеклисте.")
+            f"{user_title} уже в блеклисте.")
         return
 
     db.create_table()
     db.add(chat_id, user_name, user_title)
     db.con.commit()
     await update.message.reply_text(
-        f"Репосты из {user_title or user_name} добавлены в черный список.")
+        f"Репосты из {user_title} добавлены в черный список.")
 
 #####################
 # /allow            #
@@ -109,13 +101,13 @@ async def allow_group(update, context):
     try:
         index = int(context.args[0]) - 1
         entry = db.by_chat(update.effective_chat.id)[index]
-        user_name, user_title = entry[1], entry[2]
+        user_name, user_title = entry[0], entry[1]
 
         db.delete(update.effective_chat.id, user_name, user_title)
         db.con.commit()
 
         await update.message.reply_text(
-            f"{user_title or user_name} удален из черного списка.")
+            f"{user_title} удален из черного списка.")
 
     except Exception:
         await update.message.reply_text(
@@ -202,7 +194,7 @@ def _show_blacklist_text(chat_id, page):
             offset = 0
 
         for i, e in enumerate(bl[offset:offset+25], start=offset+1):
-            s += f"{i}) {e[2] or e[1]}\n"
+            s += f"{i}) {e[1]}\n"
 
         return s
     return "Список заблокированных чатов пуст."

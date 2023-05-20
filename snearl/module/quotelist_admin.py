@@ -35,4 +35,4 @@ async def _init_quotes(update, context):
     return await model.init_table(update, context,
                                   "quotelist", ".webp",
                                   update.effective_chat.send_sticker,
-                                  db.create_table, db.add)
+                                  db.add)

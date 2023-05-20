@@ -38,10 +38,10 @@ async def global_inline_query(update, context):
 
     for i, e in enumerate(search_results):
         # проверяем колонку type
-        if e[4] == "voice":
+        if e[5] == "voice":
             # создаем InlineQueryResult на основе типа
             results.append(voice_query_result(i, e))
-        elif e[4] == "quote":
+        elif e[5] == "quote":
             results.append(quote_query_result(i, e))
 
     if not results and not offset:
@@ -72,20 +72,26 @@ async def global_inline_query(update, context):
 def global_search(query, offset, limit):
     query = f"%{query}%".lower()
     res = db.cur.execute("SELECT chat_id, file_id, "\
-                         "file_author, file_desc, type "\
+                         "user_title, user_nick, file_desc, type "\
                          "FROM Voicelist "\
-                         "WHERE LOWER(file_author) LIKE :query "\
+                         "JOIN Userlist "\
+                         "ON Userlist.id = Voicelist.user_id "\
+                         "WHERE LOWER(user_title) LIKE :query "\
+                         "OR LOWER(user_nick) LIKE :query "\
                          "OR LOWER(file_desc) LIKE :query "\
 
                          "UNION ALL "\
 
                          "SELECT chat_id, file_id, "\
-                         "file_author, file_desc, type "\
+                         "user_title, user_nick, file_desc, type "\
                          "FROM Quotelist "\
-                         "WHERE LOWER(file_author) LIKE :query "\
+                         "JOIN Userlist "\
+                         "ON Userlist.id = Quotelist.user_id "\
+                         "WHERE LOWER(user_title) LIKE :query "\
+                         "OR LOWER(user_nick) LIKE :query "\
                          "OR LOWER(file_desc) LIKE :query "\
 
-                         "ORDER BY type DESC, file_author "\
+                         "ORDER BY type DESC, user_nick, user_title "\
                          "LIMIT :limit "\
                          "OFFSET :offset",
                          {"query": query, "limit": limit, "offset": offset})

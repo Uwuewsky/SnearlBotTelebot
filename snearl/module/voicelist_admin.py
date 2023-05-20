@@ -35,4 +35,4 @@ async def _init_voices(update, context):
     return await model.init_table(update, context,
                                   "voicelist", ".ogg",
                                   update.effective_chat.send_voice,
-                                  db.create_table, db.add)
+                                  db.add)

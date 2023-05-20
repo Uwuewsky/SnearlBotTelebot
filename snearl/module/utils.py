@@ -9,6 +9,7 @@ from telegram.constants import ChatMemberStatus
 
 import snearl.database as db
 from snearl.instance import app
+from snearl.module import userlist_db
 
 ####################
 # Функции проверки #
@@ -137,28 +138,48 @@ async def get_picture(message):
 
 async def get_avatar(message):
     avatar = None
-    pl = None
 
+    # загрузить из телеграма
     try:
+        avatar_file = None
+        pl = None
+
         if message.forward_from:
             pl = await message.forward_from.get_profile_photos(limit=1)
+            if pl and pl.total_count > 0:
+                avatar_file = pl.photos[0][0]
 
         elif message.forward_from_chat:
             chat = await app.bot.get_chat(message.forward_from_chat.id)
             if chat.photo:
-                return await download_file(chat.photo.small_file_id)
+                avatar_file = chat.photo.small_file_id
 
         elif message.forward_sender_name:
-            return avatar
+            raise Exception
 
         elif message.from_user:
             pl = await message.from_user.get_profile_photos(limit=1)
+            if pl and pl.total_count > 0:
+                avatar_file = pl.photos[0][0]
 
-        if pl and pl.total_count > 0:
-            p = pl.photos[0][0]
-            avatar = await download_file(p.file_id)
+        if avatar_file:
+            avatar = await download_file(avatar_file)
     except:
         pass
+
+    user_id = userlist_db.find_id(
+            get_sender_username(message),
+            get_sender_title(message))
+
+    # попробовать загрузить из бд
+    if not avatar:
+        res = userlist_db.get_avatar(user_id)
+        if res:
+            avatar = io.BytesIO(res)
+    else:
+        # загрузить в бд
+        userlist_db.set_avatar(user_id, avatar.getvalue())
+        userlist_db.con.commit()
 
     return avatar
 
