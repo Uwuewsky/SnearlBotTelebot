@@ -19,7 +19,9 @@ export_dir = data_dir / "export"
 con = sqlite3.connect(data_dir / "database.db")
 cur = con.cursor()
 
-con.create_function("LOWER", 1, lambda v: v.lower()) # для поиска
+con.create_function("LOWER", 1, lambda v: v.lower() if v else None) # для поиска
+cur.execute("PRAGMA foreign_keys = 1")
+con.commit()
 
 def table_clear(table):
     cur.execute(f"DELETE FROM {table}")
@@ -46,7 +48,6 @@ def settings_get(key):
     return None
 
 def settings_set(key, value):
-    settings_create_table()
     cur.execute(f"DELETE FROM Settings WHERE key='{key}'")
     cur.execute("INSERT INTO Settings VALUES (?, ?)", (key, value))
     con.commit()
@@ -54,3 +55,5 @@ def settings_set(key, value):
 def settings_delete(key):
     cur.execute(f"DELETE FROM Settings WHERE key='{key}'")
     con.commit()
+
+settings_create_table()
