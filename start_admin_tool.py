@@ -52,21 +52,20 @@ def set_local_mode():
 
 def clear_table():
     print("Внимание: данная функция необратимо удаляет все данные из таблицы!\n"\
-          "Введите номер очищаемой таблицы (q для отмены):\n"\
-          "1. Таблица данных черного списка.\n"\
-          "2. Таблица данных голосовых сообщений.\n"\
-          "3. Таблица данных цитат.")
+          "Введите действие: (q для отмены)\n"\
+          "1. Удалить настройки (включая токен)\n"\
+          "2. Удалить данные приложения (войсы, цитаты, блокировки)")
 
     a = input("> ")
     if a == "1":
+        db.table_clear("Settings")
+        print("\nНастройки сборшены!")
+    if a == "2":
+        db.table_clear("Userlist")
         db.table_clear("Blacklist")
-        print("\nТаблица Blacklist очищена.")
-    elif a == "2":
         db.table_clear("Voicelist")
-        print("\nТаблица Voicelist очищена.")
-    elif a == "3":
         db.table_clear("Quotelist")
-        print("\nТаблица Quotelist очищена.")
+        print("\n[ДАННЫЕ УДАЛЕНЫ]")
     else:
         return
 
