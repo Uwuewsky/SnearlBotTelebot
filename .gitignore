@@ -1,5 +1,6 @@
 __pycache__/
 data/log.txt
+data/persistence
 data/database.db
 data/import/token.txt
 data/export/token.txt
