@@ -29,6 +29,7 @@ voice_delete - Удалить войс
 voicelist - Посмотреть список войсов
 quote_add - Добавить цитату
 quote_delete - Удалить цитату
+quote_random - Шанс рандомной цитаты
 quotelist - Посмотреть список цитат
 ```
 
