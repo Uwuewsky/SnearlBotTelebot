@@ -6,11 +6,12 @@ import logging
 from logging.handlers import RotatingFileHandler
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, PicklePersistence
 
 import snearl.database as db
 
-app = Application.builder().token(db.settings_get("token")).build()
+persistence = PicklePersistence(filepath=db.data_dir / "persistence")
+app = Application.builder().token(db.settings_get("token")).persistence(persistence=persistence).build()
 help_messages = ["SnearlBot умеет:\n"]
 
 ##########################

@@ -187,7 +187,7 @@ def get_text(chat_id, author_num, page,
         if not vl[offset:offset+25]:
             offset = 0
         for i, e in enumerate(vl[offset:offset+25], start=offset+1):
-            s += f"{i}) {e[3]}\n"
+            s += f"{i}) {e[4] or e[3]}\n"
 
         return s
     return f"{list_name} пуст."

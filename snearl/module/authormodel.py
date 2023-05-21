@@ -2,9 +2,9 @@
 Прототип authormodel определяет некоторые функции,
 и базу данных для построения на его основе иных модулей,
 которым требуется хранить в базе данных данные в таблице вида:
-|---------+---------+-------------+-----------+-----------+------|
-| chat_id | file_id | file_author | file_desc | file_blob | type |
-|---------+---------+-------------+-----------+-----------+------|
+|---------+---------+---------+-----------+-----------+------|
+| chat_id | file_id | user_id | file_desc | file_blob | type |
+|---------+---------+---------+-----------+-----------+------|
 """
 
 import snearl.database as db
@@ -30,12 +30,12 @@ async def entry_delete(update, context,
         num_file = int(context.args[1]) - 1
 
         # найти автора по номеру в команде
-        file_author = db_get_authors(chat_id)[num_author]
+        user_title = db_get_authors(chat_id)[num_author]
 
         # найти запись по номеру в команде
-        entry = db_get_by_author(chat_id, file_author)[num_file]
+        entry = db_get_by_author(chat_id, user_title)[num_file]
 
-        file_id, file_desc = entry[1], entry[3]
+        file_id, file_desc = entry[1], entry[4]
 
         db_delete(file_id)
         db.con.commit()
@@ -48,5 +48,5 @@ async def entry_delete(update, context,
         return
 
     await update.message.reply_text(
-            f"Из {list_name_fun} {file_author} успешно удален {file_desc}")
-    return file_author, file_desc
+            f"Из {list_name_fun} {user_title} успешно удален {file_desc}")
+    return user_title, file_desc

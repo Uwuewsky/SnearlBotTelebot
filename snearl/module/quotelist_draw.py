@@ -42,8 +42,8 @@ def draw_quote(message_list):
 #############################
 # Пример cluster:
 # {
-#     "username": "@example"
-#     "nickname": "Earl",
+#     "user_name": "@example"
+#     "user_title": "Earl",
 #     "avatar"  : BytesIO("1234567890"),
 #     "content" : [
 #         ("txt", "Message text"),
@@ -64,7 +64,7 @@ def _draw_cluster(cluster):
     # рисуем аватар
     avatar_size = _draw_avatar(img, draw,
                                cluster["avatar"],
-                               cluster["nickname"])
+                               cluster["user_title"])
 
     # отступ сообщения (верхний правый угол аватарки)
     padding = 5
@@ -72,7 +72,7 @@ def _draw_cluster(cluster):
 
     # рисуем цитируемые сообщения
     content_size = _draw_content(img, draw,
-                                 cluster["nickname"],
+                                 cluster["user_title"],
                                  cluster["content"],
                                  content_margin)
 

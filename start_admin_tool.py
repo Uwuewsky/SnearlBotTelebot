@@ -8,6 +8,7 @@ import snearl.database as db
 import snearl.module.blacklist_admin as admin_b
 import snearl.module.voicelist_admin as admin_v
 import snearl.module.quotelist_admin as admin_q
+import snearl.module.userlist_admin  as admin_u
 
 commands = [] # список команд заполняется в конце файла
 
@@ -52,21 +53,29 @@ def set_local_mode():
 
 def clear_table():
     print("Внимание: данная функция необратимо удаляет все данные из таблицы!\n"\
-          "Введите номер очищаемой таблицы (q для отмены):\n"\
-          "1. Таблица данных черного списка.\n"\
-          "2. Таблица данных голосовых сообщений.\n"\
-          "3. Таблица данных цитат.")
+          "Введите действие: (q для отмены)\n"\
+          "1. Удалить [Settings] - настройки (включая токен)\n"\
+          "2. Удалить [Userlist] - список пользователей\n"\
+          "3. Удалить [Blacklist] - черный список\n"\
+          "4. Удалить [Voicelist] - список войсов\n"\
+          "5. Удалить [Quotelist] - список цитат")
 
     a = input("> ")
     if a == "1":
+        db.table_clear("Settings")
+        print("\nНастройки сборшены!")
+    if a == "2":
+        db.table_clear("Userlist")
+        print("\n[ДАННЫЕ УДАЛЕНЫ]")
+    if a == "3":
         db.table_clear("Blacklist")
-        print("\nТаблица Blacklist очищена.")
-    elif a == "2":
+        print("\n[ДАННЫЕ УДАЛЕНЫ]")
+    if a == "4":
         db.table_clear("Voicelist")
-        print("\nТаблица Voicelist очищена.")
-    elif a == "3":
+        print("\n[ДАННЫЕ УДАЛЕНЫ]")
+    if a == "5":
         db.table_clear("Quotelist")
-        print("\nТаблица Quotelist очищена.")
+        print("\n[ДАННЫЕ УДАЛЕНЫ]")
     else:
         return
 
@@ -131,6 +140,10 @@ commands += [
     (
         "[^] Экспортировать цитаты",
         admin_q.export_quotelist
+    ),
+    (
+        "[!] Редактировать пользователя",
+        admin_u.userlist_main
     ),
     (
         "[!] Миграция данных чата",
