@@ -47,10 +47,10 @@ def delete(user_id):
     """Удаление записи"""
     cur.execute("DELETE FROM Userlist WHERE id=?", (user_id,))
 
-def update(user_id, user_name, user_title):
+def update(user_id, user_title, user_name):
     """Обновление записи"""
     cur.execute("UPDATE Userlist "\
-                "SET user_title=? "\
+                "SET user_name=? user_title=? "\
                 "WHERE id=?",
                 (user_name, user_title, user_id))
 
@@ -105,6 +105,11 @@ def set_nick(user_id, user_nick):
 def get_all():
     """Все записи таблицы"""
     res = cur.execute("SELECT id, user_name, user_title FROM Userlist")
+    return res.fetchall()
+
+def get_table():
+    """Вся таблица целиком"""
+    res = cur.execute("SELECT * FROM Userlist")
     return res.fetchall()
 
 create_table()

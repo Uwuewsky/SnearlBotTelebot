@@ -6,7 +6,10 @@
 
 import random
 
-from telegram import InlineQueryResultCachedSticker
+from telegram import (
+    InlineQueryResultCachedSticker,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove)
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -31,7 +34,7 @@ def main():
     help_messages.append("""
 *Хранить и отправлять стикеры\-цитаты инлайн*
   a\. Добавить цитату:
-      /quote\_add;
+      /q;
   b\. Открыть инлайн список цитат:
       `@SnearlBot ц [ТекстЗапроса]`;
       Запросом может быть _имя автора_ или _строка из описания_;
@@ -47,16 +50,16 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), send_random_quote))
 
     app.add_handler(ConversationHandler(
-        entry_points = [CommandHandler("quote_add", quote_start)],
+        entry_points = [CommandHandler("q", quote_start)],
         states = {
-            0: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
+            0: [MessageHandler(filters.FORWARDED | filters.Regex("^Готово$"),
                                quote_receive)],
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
+            1: [MessageHandler(filters.ALL & ~filters.Regex("^Отмена$"),
                                quote_get_info)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
                                                          quote_end)]
         },
-        fallbacks = [MessageHandler(filters.Regex("^отмена$"), quote_end)],
+        fallbacks = [MessageHandler(filters.Regex("^Отмена$"), quote_end)],
         conversation_timeout = 120), group=4)
 
     # коллбек /quotelist
@@ -92,6 +95,7 @@ async def quote_start(update, context):
         return ConversationHandler.END
 
     # создать пользователю список сообщений
+    context.user_data.clear()
     context.user_data["quote_messages"] = []
     context.user_data["quote_user_title"] = None
     context.user_data["quote_user_name"] = None
@@ -107,8 +111,14 @@ async def quote_start(update, context):
     # ждать новых сообщений через ConversationHandler
     await update.message.reply_markdown_v2(
         "Теперь отправьте до 10 сообщений чтобы сделать из них цитату\.\n\n"\
-        "_Напишите `готово` чтобы закончить отправку и создать цитату "\
-        "или `отмена` чтобы отменить создание цитаты_")
+        "_Напишите `Готово` чтобы закончить отправку и создать цитату "\
+        "или `Отмена` чтобы отменить создание цитаты_",
+    # создать клавиатуру пользователю
+    reply_markup = ReplyKeyboardMarkup.from_row(
+        ["Готово", "Отмена"],
+        resize_keyboard = True,
+        one_time_keyboard=True))
+
     return 0 # stage 0
 
 # Stage 0
@@ -121,8 +131,7 @@ async def quote_receive(update, context):
     messages = context.user_data["quote_messages"]
 
     # если пришло цитируемое сообщение
-    if not (update.message.text
-            and update.message.text.lower() == "готово"):
+    if not update.message.text == "Готово":
         # добавить сообщение в список
         messages.append(update.message)
 
@@ -149,11 +158,11 @@ async def quote_get_info(update, context):
     # взять из текста сообщения
     if not context.user_data["quote_user_title"]:
         context.user_data["quote_user_title"] = utils.validate(
-        utils.get_description(update.message))
+        utils.get_full_description(update.message))
 
     elif not context.user_data["quote_desc"]:
         context.user_data["quote_desc"] = utils.validate(
-        utils.get_description(update.message))
+        utils.get_full_description(update.message))
 
     # проверить наличие имени автора и описания
     # если нет, то ждать ввода от пользователя
@@ -170,7 +179,9 @@ async def quote_end(update, context):
     """Отмена команды цитирования."""
 
     context.user_data.clear()
-    await update.message.reply_text("Создание цитаты отменено.")
+    await update.message.reply_text(
+        "Создание цитаты отменено.",
+        reply_markup=ReplyKeyboardRemove())
     return ConversationHandler.END
 
 # Create
@@ -188,7 +199,8 @@ async def quote_create(update, context, messages):
 
     if not cluster_list:
         await update.message.reply_text(
-            "Для данных сообщений нельзя создать цитату.")
+            "Для данных сообщений нельзя создать цитату.",
+            reply_markup=ReplyKeyboardRemove())
         context.user_data.clear()
         return ConversationHandler.END
 
@@ -212,12 +224,15 @@ async def quote_add(update, context):
             context.user_data["quote_cluster"])
     except:
         await update.message.reply_text(
-            "Данный тип сообщений не поддерживается.")
+            "Данный тип сообщений не поддерживается.",
+            reply_markup=ReplyKeyboardRemove())
         context.user_data.clear()
         return ConversationHandler.END
 
     # отправляем цитату в чат
-    quote_reply = await update.message.reply_sticker(quote_img.getvalue())
+    quote_reply = await update.message.reply_sticker(
+        quote_img.getvalue(),
+        reply_markup=ReplyKeyboardRemove())
 
     # выгружаем данные из пользователя
     user_title = context.user_data["quote_user_title"]
@@ -292,7 +307,7 @@ async def _quote_get_message_data(messages):
             user_name = utils.validate(message_user_name)
             user_title = utils.validate(message_user_title)
         if not file_desc:
-            file_desc = utils.validate(message_text)
+            file_desc = utils.validate(utils.get_full_description(message))
 
         # пропустить сообщение с недопустимым контентом
         if not (message_text or message_picture):

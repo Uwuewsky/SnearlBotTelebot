@@ -28,7 +28,7 @@ def main():
     help_messages.append("""
 *Хранить и отправлять инлайн списки голосовых сообщений*
   a\. Добавить войс:
-      /voice\_add;
+      /v;
   b\. Открыть инлайн список войсов:
       `@SnearlBot в [ТекстЗапроса]`;
       Запросом может быть _имя автора_ или _строка из описания_;
@@ -42,7 +42,7 @@ def main():
     app.add_handler(CommandHandler("voicelist", voicelist_show))
 
     app.add_handler(ConversationHandler(
-        entry_points = [CommandHandler("voice_add", voice_start)],
+        entry_points = [CommandHandler("v", voice_start)],
         states = {
             1: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
                                voice_get_info)],
@@ -112,6 +112,7 @@ async def voice_start(update, context):
     user_title = utils.validate(utils.get_sender_title_short(message))
     user_name = utils.validate(utils.get_sender_username(message))
 
+    context.user_data.clear()
     context.user_data["voice_user_name"] = user_name
     context.user_data["voice_user_title"] = user_title
     context.user_data["voice_desc"] = file_desc

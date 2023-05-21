@@ -47,10 +47,14 @@ async def check_access(update):
 # Строковые
 ############
 
+def get_full_description(message):
+    """Возвращает текст сообщения."""
+    text = message.text or message.caption
+    return text if text else None
+
 def get_description(message):
     """Возвращает сокращенный текст сообщения."""
-    text = message.text or message.caption
-    if not text:
+    if not (text := get_full_description(message)):
         return None
 
     res = []
@@ -137,6 +141,16 @@ async def get_picture(message):
     return picture
 
 async def get_avatar(message):
+
+    # попробовать загрузить из бд
+    user_id = userlist_db.find_id(
+        get_sender_username(message),
+        get_sender_title(message))
+    res = userlist_db.get_avatar(user_id)
+    if res:
+        return io.BytesIO(res)
+
+    # загрузить из телеграма
     avatar = None
 
     # загрузить из телеграма
