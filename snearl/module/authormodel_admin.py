@@ -27,8 +27,14 @@ def export_table(dir_name, file_ext, db_get_all, db_get_blob):
 
         file_path = (file_dir / file_desc).with_suffix(file_ext)
 
-        if file_path.exists():
-            file_path = file_path.with_stem(file_id)
+        if file_path.is_file():
+            for i in range(1, 100):
+                temp_path = file_path.with_stem(file_desc + f" ({i})")
+                if not temp_path.is_file():
+                    file_path = temp_path
+                    break
+            if file_path.is_file():
+                file_path = file_path.with_stem(file_id)
 
         file_dir.mkdir(parents=True, exist_ok=True)
         file_path.write_bytes(file_blob)

@@ -13,6 +13,7 @@ from telegram.ext import (
 from snearl.instance import app, help_messages
 from snearl.module import utils
 import snearl.module.blacklist_db as db
+from snearl.module import userlist_db
 
 #####################
 # main              #
@@ -52,6 +53,9 @@ async def delete_repost(update, context):
     if not res:
         return
 
+    userlist_db.update(user_name, user_title)
+    db.con.commit()
+
     await update.message.delete()
 
     # проверка: отправлять сообщение только раз в 5 секунд
@@ -85,6 +89,7 @@ async def block_group(update, context):
 
     db.create_table()
     db.add(chat_id, user_name, user_title)
+    userlist_db.update(user_name, user_title)
     db.con.commit()
     await update.message.reply_text(
         f"Репосты из {user_title} добавлены в черный список.")

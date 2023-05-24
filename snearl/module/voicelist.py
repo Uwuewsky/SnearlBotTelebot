@@ -13,6 +13,7 @@ from telegram.ext import (
     filters)
 
 from snearl.module import utils
+from snearl.module import userlist_db
 from snearl.instance import app, help_messages
 
 import snearl.module.authormodel as datamodel
@@ -143,6 +144,7 @@ async def voice_add(update, context):
     db.add(chat_id, file_id,
            user_name, user_title,
            file_desc, file_blob.getbuffer())
+    userlist_db.update(user_name, user_title)
     db.con.commit()
     file_blob.close()
 

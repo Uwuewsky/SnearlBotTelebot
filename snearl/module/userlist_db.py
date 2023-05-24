@@ -47,12 +47,15 @@ def delete(user_id):
     """Удаление записи"""
     cur.execute("DELETE FROM Userlist WHERE id=?", (user_id,))
 
-def update(user_id, user_title, user_name):
+def update(user_name, user_title):
     """Обновление записи"""
+    if not (user_name and user_title):
+        return
+
     cur.execute("UPDATE Userlist "\
-                "SET user_name=? user_title=? "\
-                "WHERE id=?",
-                (user_name, user_title, user_id))
+                "SET user_title=? "\
+                "WHERE user_name=?",
+                (user_title, user_name))
 
 def find(user_name, user_title):
     """Имеется ли запись в БД. Возвращает запись целиком."""

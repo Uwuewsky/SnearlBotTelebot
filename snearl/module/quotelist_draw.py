@@ -142,7 +142,9 @@ def _get_sizes(img, draw, nickname, content, margin):
     """Рассчет размеров и отступов элементов сообщения"""
 
     # отступ текста от границ
-    padding = 7
+    padding = 10
+    # отступ контента от никнейма
+    content_padding = 7
 
     # отступ заголовка с никнеймом
     header_margin = (margin[0] + padding,
@@ -156,7 +158,7 @@ def _get_sizes(img, draw, nickname, content, margin):
 
     # отступ содержимого сообщения
     message_margin = (header_size[0],
-                      header_size[3] + (padding if nickname else 0))
+                      header_size[3] + (content_padding if nickname else 0))
     message_size = _draw_message(img, draw, content,
                                  message_margin, skip=True)
 
@@ -166,12 +168,12 @@ def _get_sizes(img, draw, nickname, content, margin):
     return header_margin, message_margin, full_size
 
 def _draw_background(img, draw, size):
-    color = (35, 35, 50, 255)
-    radius = 10
+    color = (40, 40, 55, 255)
+    radius = 12
     draw.rounded_rectangle(size, radius=radius, fill=color)
 
 def _draw_nickname(img, draw, nickname, margin, skip=False):
-    color = (160, 200, 255)
+    color = _get_color_by_hash(nickname) # (160, 200, 255)
 
     # вернуть размеры заголовка, ничего не рисуя
     if skip:
@@ -237,17 +239,7 @@ def _draw_avatar(img, draw, avatar, nickname):
 
 def _draw_fallback_avatar(nickname):
     # взять цвет по хэшу никнейма
-    index_hash = "".join(filter(str.isdigit,
-                                hashlib.md5(nickname.encode())
-                                .hexdigest()))[:1]
-    index = int(index_hash or "0") - 5
-    color = [
-        (240, 190, 140), # оранжевый
-        (240, 140, 140), # красный
-        (140, 240, 140), # зеленый
-        (190, 140, 240), # фиолетовый
-        (140, 190, 240)  # синий
-    ][index]
+    color = _get_color_by_hash(nickname)
 
     avatar = Image.new("RGBA", (100, 100), 0)
     draw = ImageDraw.Draw(avatar)
@@ -288,3 +280,19 @@ def _merge_clusters(strips):
     crop_h = offset - margin
     img = img.crop((0, 0, crop_w, crop_h))
     return img
+
+def _get_color_by_hash(nickname):
+    index_hash = "".join(filter(str.isdigit,
+                                hashlib.md5(nickname.encode())
+                                .hexdigest()))[:1]
+
+    index = int(index_hash or "0") - 5
+    color = [
+        (240, 200, 160), # оранжевый
+        (240, 160, 160), # красный
+        (160, 240, 160), # зеленый
+        (200, 160, 240), # фиолетовый
+        (160, 200, 240)  # синий
+    ][index]
+
+    return color
