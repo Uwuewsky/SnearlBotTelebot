@@ -18,6 +18,7 @@ from telegram.ext import (
     filters)
 
 from snearl.module import utils
+from snearl.module import userlist_db
 from snearl.instance import app, help_messages
 
 import snearl.module.authormodel as datamodel
@@ -41,6 +42,7 @@ def main():
   c\. Удалить цитату:
       `/quote_delete [НомерАвтора] [НомерЦитаты]`;
   d\. Список цитат: /quotelist;
+  e\. Частота случайных цитат: /quote_random;
 """)
 
     # команды
@@ -117,7 +119,8 @@ async def quote_start(update, context):
     reply_markup = ReplyKeyboardMarkup.from_row(
         ["Готово", "Отмена"],
         resize_keyboard = True,
-        one_time_keyboard=True))
+        one_time_keyboard = True,
+        selective = True))
 
     return 0 # stage 0
 
@@ -245,6 +248,7 @@ async def quote_add(update, context):
            quote_reply.sticker.file_id,
            user_name, user_title,
            file_desc, quote_img.getbuffer())
+    userlist_db.update(user_name, user_title)
     db.con.commit()
 
     # стикер уже отправлен как сообщение о добавлении
@@ -377,6 +381,14 @@ async def send_random_quote(update, context):
     return
 
 async def quote_frequency(update, context):
+
+    current_frequency = context.chat_data.get("quote_random", 1)
+    if not context.args:
+        await update.message.reply_markdown_v2(
+            f"Текущая вероятность: {current_frequency}%\.\n"\
+            "Изменить: `/quote_random [0-100]`")
+        return
+
     if await utils.check_access(update):
         return
 
@@ -392,7 +404,7 @@ async def quote_frequency(update, context):
     except:
         await update.message.reply_markdown_v2(
         "Введите корректную частоту ответов в процентах\.\n"\
-        "`/quote_random 20`")
+        "Например, `/quote_random 20`")
 
 ####################
 # /quote_delete    #

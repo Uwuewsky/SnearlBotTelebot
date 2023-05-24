@@ -5,6 +5,9 @@
 import io, hashlib
 
 from PIL import Image, ImageDraw, ImageFont
+from pilmoji import Pilmoji
+from pilmoji.source import AppleEmojiSource
+
 import snearl.database as db
 
 content_font = ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"), 18)
@@ -57,7 +60,7 @@ def _draw_cluster(cluster):
     """Отрисовка кластера сообщений от одного пользователя"""
 
     # создаем прозрачное изображение
-    img_size = (512, 1536)
+    img_size = (768, 1536)
     img = Image.new("RGBA", img_size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
 
@@ -114,7 +117,7 @@ def _draw_content(img, draw, nickname, content, margin):
             h_m, c_m, bg_size = _get_sizes(img, draw,
                                            nickname if is_first else None,
                                            message, current_margin)
-        except:
+        except Exception:
             continue
 
         # bg_size[3] - нижняя Y-координата на картинке
@@ -142,7 +145,9 @@ def _get_sizes(img, draw, nickname, content, margin):
     """Рассчет размеров и отступов элементов сообщения"""
 
     # отступ текста от границ
-    padding = 7
+    padding = 10
+    # отступ контента от никнейма
+    content_padding = 7
 
     # отступ заголовка с никнеймом
     header_margin = (margin[0] + padding,
@@ -156,7 +161,7 @@ def _get_sizes(img, draw, nickname, content, margin):
 
     # отступ содержимого сообщения
     message_margin = (header_size[0],
-                      header_size[3] + (padding if nickname else 0))
+                      header_size[3] + (content_padding if nickname else 0))
     message_size = _draw_message(img, draw, content,
                                  message_margin, skip=True)
 
@@ -166,19 +171,29 @@ def _get_sizes(img, draw, nickname, content, margin):
     return header_margin, message_margin, full_size
 
 def _draw_background(img, draw, size):
-    color = (35, 35, 50, 255)
-    radius = 10
+    color = (40, 40, 55, 255)
+    radius = 12
     draw.rounded_rectangle(size, radius=radius, fill=color)
 
 def _draw_nickname(img, draw, nickname, margin, skip=False):
-    color = (160, 200, 255)
+    color = _get_color_by_hash(nickname) # (160, 200, 255)
 
     # вернуть размеры заголовка, ничего не рисуя
     if skip:
-        return draw.textbbox(margin, nickname, font=header_font)
+        # return draw.textbbox(margin, nickname, font=header_font)
+        with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
+            size = pilmoji.getsize(nickname, font=header_font,
+                                   emoji_scale_factor=1.2)
+
+        return margin + (margin[0] + size[0], margin[1] + size[1])
 
     # рисуем заголовок
-    draw.text(margin, nickname, font=header_font, fill=color)
+    # draw.text(margin, nickname, font=header_font, fill=color)
+    with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
+        pilmoji.text(margin, nickname,
+                     font=header_font, fill=color,
+                     emoji_scale_factor=1.2,
+                     emoji_position_offset=(0,3))
 
 def _draw_message(img, draw, content, margin, skip=False):
     if content[0] == "pic":
@@ -190,9 +205,17 @@ def _draw_message(img, draw, content, margin, skip=False):
 def _draw_text(img, draw, text, margin, skip=False):
     color = (245, 245, 245)
     if skip:
-        return draw.multiline_textbbox(margin, text, font=content_font)
-    draw.multiline_text(margin, text,
-                        font=content_font, fill=color)
+        # return draw.multiline_textbbox(margin, text, font=content_font)
+        with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
+            size = pilmoji.getsize(text, font=content_font)
+        return margin + (margin[0] + size[0], margin[1] + size[1])
+
+    # draw.multiline_text(margin, text,
+    #                     font=content_font, fill=color)
+    with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
+        pilmoji.text(margin, text,
+                     font=content_font, fill=color,
+                     emoji_position_offset=(0,5))
 
 def _draw_picture(img, draw, picture, margin, skip=False):
     max_size = (340, 340)
@@ -237,17 +260,7 @@ def _draw_avatar(img, draw, avatar, nickname):
 
 def _draw_fallback_avatar(nickname):
     # взять цвет по хэшу никнейма
-    index_hash = "".join(filter(str.isdigit,
-                                hashlib.md5(nickname.encode())
-                                .hexdigest()))[:1]
-    index = int(index_hash or "0") - 5
-    color = [
-        (240, 190, 140), # оранжевый
-        (240, 140, 140), # красный
-        (140, 240, 140), # зеленый
-        (190, 140, 240), # фиолетовый
-        (140, 190, 240)  # синий
-    ][index]
+    color = _get_color_by_hash(nickname)
 
     avatar = Image.new("RGBA", (100, 100), 0)
     draw = ImageDraw.Draw(avatar)
@@ -288,3 +301,19 @@ def _merge_clusters(strips):
     crop_h = offset - margin
     img = img.crop((0, 0, crop_w, crop_h))
     return img
+
+def _get_color_by_hash(nickname):
+    index_hash = "".join(filter(str.isdigit,
+                                hashlib.md5(nickname.encode())
+                                .hexdigest()))[:1]
+
+    index = int(index_hash or "0") - 5
+    color = [
+        (240, 200, 160), # оранжевый
+        (240, 160, 160), # красный
+        (160, 240, 160), # зеленый
+        (200, 160, 240), # фиолетовый
+        (160, 200, 240)  # синий
+    ][index]
+
+    return color
