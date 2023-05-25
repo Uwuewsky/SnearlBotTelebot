@@ -42,7 +42,7 @@ def main():
   c\. Удалить цитату:
       `/quote_delete [НомерАвтора] [НомерЦитаты]`;
   d\. Список цитат: /quotelist;
-  e\. Частота случайных цитат: /quote_random;
+  e\. Частота случайных цитат: /quote\_random;
 """)
 
     # команды
@@ -225,7 +225,7 @@ async def quote_add(update, context):
     try:
         quote_img = drawing.draw_quote(
             context.user_data["quote_cluster"])
-    except:
+    except Exception:
         await update.message.reply_text(
             "Данный тип сообщений не поддерживается.",
             reply_markup=ReplyKeyboardRemove())

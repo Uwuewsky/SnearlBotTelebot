@@ -2,7 +2,9 @@
 Модуль с функциями рисования цитаты.
 """
 
-import io, hashlib
+import io
+import hashlib
+from types import SimpleNamespace
 
 from PIL import Image, ImageDraw, ImageFont
 from pilmoji import Pilmoji
@@ -10,8 +12,51 @@ from pilmoji.source import AppleEmojiSource
 
 import snearl.database as db
 
-content_font = ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"), 18)
-header_font = ImageFont.truetype(str(db.data_dir / "NotoSans-Bold.ttf"), 21)
+Param = SimpleNamespace(
+    # шрифт никнейма
+    font_header = ImageFont.truetype(str(db.data_dir / "NotoSans-Bold.ttf"), 21),
+    # шрифт текста
+    font_content = ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"), 18),
+
+    # параметры сохранения в блоб
+    save_format = "webp",
+    save_lossless = False,
+    save_quality = 90,
+
+    # максимальная высота цитаты
+    # все последующие кластеры сообщений будут отброшены
+    image_max_height = 2500,
+
+    # макс размер кластера сообщений
+    cluster_max_size = (768, 1536),
+    # отступ между кластерами
+    cluster_margin = 10,
+
+    # отступ сообщения от аватарки
+    avatar_margin = 5,
+
+    # отступ между сообщениями
+    message_margin = 7,
+    # отступ текста от границ
+    message_padding = 10,
+    # отступ контента сверху от никнейма
+    content_padding = 7,
+
+    # параметры заднего фона
+    background_color = (40, 40, 55, 255),
+    background_radius = 16,
+
+    # рисовать текст чуть выше
+    # чтобы он был горизонтально по центру
+    text_offset = -4,
+    text_color = (245, 245, 245),
+
+    picture_max_size = (340, 340),
+
+    avatar_size = (48, 48),
+    # визуальный отступ, не влияет на возвращаемый размер
+    avatar_offset = (0, 7)
+)
 
 ####################
 # Рисование цитаты #
@@ -26,7 +71,7 @@ def draw_quote(message_list):
     for cluster in message_list:
         try:
             strips.append(_draw_cluster(cluster))
-        except:
+        except Exception:
             pass
 
     if not strips:
@@ -39,7 +84,10 @@ def draw_quote(message_list):
 
     # сохраняем в BytesIO
     file_bytes = io.BytesIO()
-    quote_img.save(file_bytes, format="webp", lossless=False, quality=90)
+    quote_img.save(file_bytes,
+                   format=Param.save_format,
+                   lossless=Param.save_lossless,
+                   quality=Param.save_quality)
     return file_bytes
 
 #############################
@@ -60,7 +108,7 @@ def _draw_cluster(cluster):
     """Отрисовка кластера сообщений от одного пользователя"""
 
     # создаем прозрачное изображение
-    img_size = (768, 1536)
+    img_size = Param.cluster_max_size
     img = Image.new("RGBA", img_size, (255, 255, 255, 0))
     draw = ImageDraw.Draw(img)
 
@@ -70,8 +118,8 @@ def _draw_cluster(cluster):
                                cluster["user_title"])
 
     # отступ сообщения (верхний правый угол аватарки)
-    padding = 5
-    content_margin = (avatar_size[3] + padding, avatar_size[1])
+    content_margin = (avatar_size[3] + Param.avatar_margin,
+                      avatar_size[1])
 
     # рисуем цитируемые сообщения
     content_size = _draw_content(img, draw,
@@ -93,11 +141,6 @@ def _draw_content(img, draw, nickname, content, margin):
 
     # рисуем никнейм только на первом сообщении
     is_first = True
-    # отступ между сообщениями
-    message_margin = 7
-    # максимальная высота кластера в пикселях
-    # все последующие сообщения будут отброшены
-    max_height = 1500
     # список размеров сообщений
     size_list = []
 
@@ -106,7 +149,7 @@ def _draw_content(img, draw, nickname, content, margin):
         current_margin = [margin[0],
                           margin[1]]
         if not is_first:
-            current_margin[1] += message_margin
+            current_margin[1] += Param.message_margin
         if size_list:
             current_margin[1] += size_list[-1][3]
 
@@ -120,8 +163,10 @@ def _draw_content(img, draw, nickname, content, margin):
         except Exception:
             continue
 
+        # максимальная высота кластера в пикселях
+        # все последующие сообщения будут отброшены
         # bg_size[3] - нижняя Y-координата на картинке
-        if bg_size[3] >= max_height:
+        if bg_size[3] >= Param.cluster_max_size[1]:
             break
 
         # собственно рисование
@@ -144,14 +189,9 @@ def _draw_content(img, draw, nickname, content, margin):
 def _get_sizes(img, draw, nickname, content, margin):
     """Рассчет размеров и отступов элементов сообщения"""
 
-    # отступ текста от границ
-    padding = 10
-    # отступ контента от никнейма
-    content_padding = 7
-
     # отступ заголовка с никнеймом
-    header_margin = (margin[0] + padding,
-                     margin[1] + padding)
+    header_margin = (margin[0] + Param.message_padding,
+                     margin[1] + Param.message_padding)
     if nickname:
         header_size = _draw_nickname(img, draw, nickname,
                                      header_margin, skip=True)
@@ -161,37 +201,49 @@ def _get_sizes(img, draw, nickname, content, margin):
 
     # отступ содержимого сообщения
     message_margin = (header_size[0],
-                      header_size[3] + (content_padding if nickname else 0))
+                      header_size[3] + (Param.content_padding if nickname else 0))
     message_size = _draw_message(img, draw, content,
                                  message_margin, skip=True)
 
     full_size = [margin[0], margin[1],
-                 max(header_size[2], message_size[2]) + padding,
-                 max(header_size[3], message_size[3]) + padding]
+                 max(header_size[2], message_size[2]) + Param.message_padding,
+                 max(header_size[3], message_size[3]) + Param.message_padding]
     return header_margin, message_margin, full_size
 
 def _draw_background(img, draw, size):
-    color = (40, 40, 55, 255)
-    radius = 12
-    draw.rounded_rectangle(size, radius=radius, fill=color)
+    margin = (size[0], size[1])
+    width = size[2] - size[0]
+    height = size[3] - size[1]
+
+    # как в случае с аватаркой, уменьшаем чтобы не было резких краев
+    start_size = (int(width*1.5), int(height*1.5))
+    start_img = Image.new("RGBA", start_size, (255, 255, 255, 0))
+    start_draw = ImageDraw.Draw(start_img)
+    start_draw.rounded_rectangle((0, 0) + start_size,
+                                 radius=Param.background_radius,
+                                 fill=Param.background_color)
+
+    img.alpha_composite(start_img.resize((width, height)),
+                        margin)
 
 def _draw_nickname(img, draw, nickname, margin, skip=False):
     color = _get_color_by_hash(nickname) # (160, 200, 255)
+    offset = (margin[0], margin[1] + Param.text_offset)
 
     # вернуть размеры заголовка, ничего не рисуя
     if skip:
-        # return draw.textbbox(margin, nickname, font=header_font)
+        # return draw.textbbox(margin, nickname, font=Param.font_header)
         with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
-            size = pilmoji.getsize(nickname, font=header_font,
+            size = pilmoji.getsize(nickname, font=Param.font_header,
                                    emoji_scale_factor=1.2)
 
         return margin + (margin[0] + size[0], margin[1] + size[1])
 
     # рисуем заголовок
-    # draw.text(margin, nickname, font=header_font, fill=color)
+    # draw.text(offset, nickname, font=Param.font_header, fill=color)
     with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
-        pilmoji.text(margin, nickname,
-                     font=header_font, fill=color,
+        pilmoji.text(offset, nickname,
+                     font=Param.font_header, fill=color,
                      emoji_scale_factor=1.2,
                      emoji_position_offset=(0,3))
 
@@ -203,25 +255,25 @@ def _draw_message(img, draw, content, margin, skip=False):
     return size
 
 def _draw_text(img, draw, text, margin, skip=False):
-    color = (245, 245, 245)
+    offset = (margin[0], margin[1] + Param.text_offset)
+
     if skip:
-        # return draw.multiline_textbbox(margin, text, font=content_font)
+        # return draw.multiline_textbbox(margin, text, font=Param.font_content)
         with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
-            size = pilmoji.getsize(text, font=content_font)
+            size = pilmoji.getsize(text, font=Param.font_content)
         return margin + (margin[0] + size[0], margin[1] + size[1])
 
-    # draw.multiline_text(margin, text,
-    #                     font=content_font, fill=color)
+    # draw.multiline_text(offset, text,
+    #                     font=Param.font_content, fill=Param.color)
     with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
-        pilmoji.text(margin, text,
-                     font=content_font, fill=color,
+        pilmoji.text(offset, text,
+                     font=Param.font_content,
+                     fill=Param.text_color,
                      emoji_position_offset=(0,5))
 
 def _draw_picture(img, draw, picture, margin, skip=False):
-    max_size = (340, 340)
-
     with Image.open(picture) as p:
-        p.thumbnail(max_size)
+        p.thumbnail(Param.picture_max_size)
         if skip:
             return (margin[0],
                     margin[1],
@@ -236,12 +288,12 @@ def _draw_avatar(img, draw, avatar, nickname):
     if not avatar:
         avatar = _draw_fallback_avatar(nickname)
 
-    size = (48, 48)
+    size = Param.avatar_size
 
     # маска для круглой аватарки
-    # сначала создаем в 2 раза больше,
+    # сначала создаем в 1.5 раза больше,
     # затем уменьшаем чтобы границы не были резкими.....
-    mask_start_size = (size[0]*2, size[1]*2)
+    mask_start_size = (int(size[0]*1.5), int(size[1]*1.5))
     mask = Image.new("L", mask_start_size, 0)
     ImageDraw.Draw(mask).ellipse((0, 0) + mask_start_size, fill=255)
     mask = mask.resize(size)
@@ -251,12 +303,12 @@ def _draw_avatar(img, draw, avatar, nickname):
         with Image.open(avatar) as a:
             a.thumbnail(size)
             a.putalpha(mask)
-            img.paste(a, (0, 0))
+            img.paste(a, Param.avatar_offset)
     except Exception:
         return (0, 0, 0, 0)
 
     # возвращаем размеры аватарки (x1, y1, x2, y2)
-    return (0, 0, size[0], size[1])
+    return (0, 0) + size
 
 def _draw_fallback_avatar(nickname):
     # взять цвет по хэшу никнейма
@@ -277,12 +329,8 @@ def _draw_fallback_avatar(nickname):
 
 def _merge_clusters(strips):
     """Склеивает из отдельных кластеров цитату целиком"""
-
-    # максимальная высота отступа
-    # все последующие сообщения будут отброшены
-    max_offset = 2000
     # отступ между кластерами сообщений
-    margin = 10
+    margin = Param.cluster_margin
     img_w = max(s.width for s in strips)
     img_h = sum(s.height + margin for s in strips) - margin
 
@@ -291,12 +339,13 @@ def _merge_clusters(strips):
     offset = 0
     crop_w = 0
     for strip in strips:
-        img.paste(strip, (0, offset))
-        offset += strip.height + margin
-        crop_w = max(crop_w, strip.width)
-
-        if offset >= max_offset:
+        height = strip.height + margin
+        if offset + height >= Param.image_max_height:
             break
+
+        img.paste(strip, (0, offset))
+        offset += height
+        crop_w = max(crop_w, strip.width)
 
     crop_h = offset - margin
     img = img.crop((0, 0, crop_w, crop_h))
