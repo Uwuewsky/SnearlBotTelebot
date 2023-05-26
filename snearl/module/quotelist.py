@@ -54,14 +54,14 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points = [CommandHandler("q", quote_start)],
         states = {
-            0: [MessageHandler(filters.FORWARDED | filters.Regex("^Готово$"),
+            0: [MessageHandler(filters.FORWARDED | filters.Regex("^[Гг]отово$"),
                                quote_receive)],
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^Отмена$"),
+            1: [MessageHandler(filters.ALL & ~filters.Regex("^[Оо]тмена$"),
                                quote_get_info)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
-                                                         quote_end)]
+                                                         quote_cancel)]
         },
-        fallbacks = [MessageHandler(filters.Regex("^Отмена$"), quote_end)],
+        fallbacks = [MessageHandler(filters.Regex("^[Оо]тмена$"), quote_cancel)],
         conversation_timeout = 120), group=4)
 
     # коллбек /quotelist
@@ -98,6 +98,9 @@ async def quote_start(update, context):
 
     # создать пользователю список сообщений
     context.user_data.clear()
+    # список собственных сообщений для удаления
+    context.user_data["quote_delete"] = []
+    # список сообщений-репостов для цитаты
     context.user_data["quote_messages"] = []
     context.user_data["quote_user_title"] = None
     context.user_data["quote_user_name"] = None
@@ -111,7 +114,7 @@ async def quote_start(update, context):
         return status
 
     # ждать новых сообщений через ConversationHandler
-    await update.message.reply_markdown_v2(
+    help_msg = await update.message.reply_markdown_v2(
         "Теперь отправьте до 10 сообщений чтобы сделать из них цитату\.\n\n"\
         "_Напишите `Готово` чтобы закончить отправку и создать цитату "\
         "или `Отмена` чтобы отменить создание цитаты_",
@@ -121,6 +124,8 @@ async def quote_start(update, context):
         resize_keyboard = True,
         one_time_keyboard = True,
         selective = True))
+
+    context.user_data["quote_delete"].append(help_msg)
 
     return 0 # stage 0
 
@@ -134,7 +139,7 @@ async def quote_receive(update, context):
     messages = context.user_data["quote_messages"]
 
     # если пришло цитируемое сообщение
-    if not update.message.text == "Готово":
+    if not update.message.text in ["Готово", "готово"]:
         # добавить сообщение в список
         messages.append(update.message)
 
@@ -142,9 +147,7 @@ async def quote_receive(update, context):
         if len(messages) < 10:
             return 0
 
-    # очистить данные пользователя о цитате
-    if "quote_messages" in context.user_data:
-        del context.user_data["quote_messages"]
+    context.user_data["quote_delete"].append(update.message)
 
     # создать цитату и закончить разговор
     status = await quote_create(update, context, messages)
@@ -178,13 +181,32 @@ async def quote_get_info(update, context):
 # Cancel
 ############
 
-async def quote_end(update, context):
+async def quote_cancel(update, context):
     """Отмена команды цитирования."""
 
-    context.user_data.clear()
     await update.message.reply_text(
         "Создание цитаты отменено.",
         reply_markup=ReplyKeyboardRemove())
+
+    context.user_data["quote_messages"].append(update.message)
+
+    return (await quote_end(update, context))
+
+async def quote_end(update, context):
+    """Завершение команды цитирования"""
+
+    for m in context.user_data["quote_delete"]:
+        try:
+            await m.delete()
+        except Exception:
+            pass
+    for m in context.user_data["quote_messages"]:
+        try:
+            await m.delete()
+        except Exception:
+            pass
+
+    context.user_data.clear()
     return ConversationHandler.END
 
 # Create
@@ -204,8 +226,7 @@ async def quote_create(update, context, messages):
         await update.message.reply_text(
             "Для данных сообщений нельзя создать цитату.",
             reply_markup=ReplyKeyboardRemove())
-        context.user_data.clear()
-        return ConversationHandler.END
+        return (await quote_end(update, context))
 
     context.user_data["quote_cluster"] = cluster_list
 
@@ -229,8 +250,7 @@ async def quote_add(update, context):
         await update.message.reply_text(
             "Данный тип сообщений не поддерживается.",
             reply_markup=ReplyKeyboardRemove())
-        context.user_data.clear()
-        return ConversationHandler.END
+        return (await quote_end(update, context))
 
     # отправляем цитату в чат
     quote_reply = await update.message.reply_sticker(
@@ -255,9 +275,7 @@ async def quote_add(update, context):
     # await update.message.reply_text(
     #     f"В сборник афоризмов {user_title} успешно добавлено {file_desc}")
 
-    # очистить данные пользователя
-    context.user_data.clear()
-    return ConversationHandler.END
+    return (await quote_end(update, context))
 
 # Вспомогательные функции
 ###########################
@@ -285,8 +303,11 @@ async def _quote_check_info(update, context):
     if not s:
         return None
 
-    await update.message.reply_text(
+    msg = await update.message.reply_text(
         f"Теперь напишите {s} для этой цитаты.")
+
+    context.user_data["quote_delete"].append(msg)
+
     return 1 # stage 1
 
 async def _quote_get_message_data(messages):
@@ -367,6 +388,7 @@ async def _quote_get_message_data(messages):
 ####################
 
 async def send_random_quote(update, context):
+
     # дефолтная вероятность прислать случайный стикер в чат
     frequency = context.chat_data.get("quote_random", 1)
 
