@@ -5,6 +5,7 @@
 """
 
 import random
+from datetime import datetime, timezone
 
 from telegram import (
     InlineQueryResultCachedSticker,
@@ -42,7 +43,7 @@ def main():
   c\. Удалить цитату:
       `/quote_delete [НомерАвтора] [НомерЦитаты]`;
   d\. Список цитат: /quotelist;
-  e\. Частота случайных цитат: /quote_random;
+  e\. Частота случайных цитат: /quote\_random;
 """)
 
     # команды
@@ -93,8 +94,8 @@ def quote_query_result(i, e):
 async def quote_start(update, context):
     """Начало команды цитирования."""
 
-    if await utils.check_access(update):
-        return ConversationHandler.END
+    """ if await utils.check_access(update):
+        return ConversationHandler.END """
 
     # создать пользователю список сообщений
     context.user_data.clear()
@@ -369,8 +370,16 @@ async def _quote_get_message_data(messages):
 async def send_random_quote(update, context):
     # дефолтная вероятность прислать случайный стикер в чат
     frequency = context.chat_data.get("quote_random", 1)
+    # время, прошедшее с последних апдейтов. Нужно для того,
+    # чтобы предотвратить ответы на слишком старые сообщения
+    dateOld = update.message.date
+    dateNow = datetime.now(timezone.utc)
+    timedelta = dateNow-dateOld
 
     if frequency == 0:
+        return
+    
+    if (timedelta.seconds) > 10:
         return
 
     r = random.randint(1, 100)
@@ -385,7 +394,7 @@ async def quote_frequency(update, context):
     current_frequency = context.chat_data.get("quote_random", 1)
     if not context.args:
         await update.message.reply_markdown_v2(
-            f"Текущая вероятность: {current_frequency}%.\n"\
+            f"Текущая вероятность: {current_frequency}%\.\n"\
             "Изменить: `/quote_random [0-100]`")
         return
 
