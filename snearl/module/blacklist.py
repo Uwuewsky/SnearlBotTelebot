@@ -53,7 +53,7 @@ async def delete_repost(update, context):
     if not res:
         return
 
-    userlist_db.update(user_name, user_title)
+    userlist_db.update(user_name, utils.validate(user_title))
     db.con.commit()
 
     await update.message.delete()
@@ -89,7 +89,7 @@ async def block_group(update, context):
 
     db.create_table()
     db.add(chat_id, user_name, user_title)
-    userlist_db.update(user_name, user_title)
+    userlist_db.update(user_name, utils.validate(user_title))
     db.con.commit()
     await update.message.reply_text(
         f"Репосты из {user_title} добавлены в черный список.")

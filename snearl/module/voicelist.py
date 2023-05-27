@@ -45,12 +45,12 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points = [CommandHandler("v", voice_start)],
         states = {
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^отмена$"),
+            1: [MessageHandler(filters.ALL & ~filters.Regex("^[Оо]тмена$"),
                                voice_get_info)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
-                                                         voice_end)]
+                                                         voice_cancel)]
         },
-        fallbacks = [MessageHandler(filters.Regex("^отмена$"), voice_end)],
+        fallbacks = [MessageHandler(filters.Regex("^[Оо]тмена$"), voice_cancel)],
         conversation_timeout = 30), group=3)
 
     # коллбек /voicelist
@@ -114,6 +114,8 @@ async def voice_start(update, context):
     user_name = utils.validate(utils.get_sender_username(message))
 
     context.user_data.clear()
+    # список сообщений для удаления в конце команды
+    context.user_data["voice_delete"] = []
     context.user_data["voice_user_name"] = user_name
     context.user_data["voice_user_title"] = user_title
     context.user_data["voice_desc"] = file_desc
@@ -124,8 +126,7 @@ async def voice_start(update, context):
     if res := await _voice_check_info(update, context):
         return res # stage 1
 
-    status = await voice_add(update, context)
-    return status
+    return (await voice_add(update, context))
 
 # Add
 ############
@@ -148,10 +149,9 @@ async def voice_add(update, context):
     db.con.commit()
     file_blob.close()
 
-    context.user_data.clear()
     await update.message.reply_text(
         f"В дискографию {user_title} успешно добавлено {file_desc}")
-    return ConversationHandler.END
+    return (await voice_end(update, context))
 
 # Stage 1
 ############
@@ -161,6 +161,9 @@ async def voice_get_info(update, context):
     Функция получения имени автора/описания
     если их нельзя извлечь из сообщения
     """
+
+    context.user_data["voice_delete"].append(update.message)
+
     # взять из текста сообщения
     if not context.user_data["voice_user_title"]:
         context.user_data["voice_user_title"] = utils.validate(
@@ -181,11 +184,23 @@ async def voice_get_info(update, context):
 # Cancel
 ############
 
-async def voice_end(update, context):
+async def voice_cancel(update, context):
     """Отмена команды добавления."""
 
-    context.user_data.clear()
+    context.user_data["voice_delete"].append(update.message)
     await update.message.reply_text("Добавление войса отменено.")
+    return (await voice_end(update, context))
+
+async def voice_end(update, context):
+    """Завершение команды добавления."""
+
+    for m in context.user_data["voice_delete"]:
+        try:
+            await m.delete()
+        except Exception:
+            pass
+
+    context.user_data.clear()
     return ConversationHandler.END
 
 # Вспомогательные функции
@@ -214,10 +229,13 @@ async def _voice_check_info(update, context):
     if not s:
         return None
 
-    await update.message.reply_markdown_v2(
+    msg = await update.message.reply_markdown_v2(
         f"Теперь напишите {s} для этого войса\.\n\n"\
         "_Описание также можно ввести в команде: `/voice_add Продал все приставки`\n"\
         "Напишите `отмена` чтобы отменить добавление войса_")
+
+    context.user_data["voice_delete"].append(msg)
+
     return 1 # stage 1
 
 ####################

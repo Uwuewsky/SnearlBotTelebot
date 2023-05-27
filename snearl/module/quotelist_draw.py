@@ -188,7 +188,6 @@ def _draw_content(img, draw, nickname, content, margin):
 
 def _get_sizes(img, draw, nickname, content, margin):
     """Рассчет размеров и отступов элементов сообщения"""
-    
     # отступ заголовка с никнеймом
     header_margin = (margin[0] + Param.message_padding,
                      margin[1] + Param.message_padding)
