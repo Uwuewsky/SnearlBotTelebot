@@ -4,7 +4,11 @@
 а затем отправлять в чат через поиск инлайн.
 """
 
-from telegram import InlineQueryResultCachedVoice
+from telegram import (
+    InlineQueryResultCachedVoice,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove)
+
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -47,6 +51,7 @@ def main():
         states = {
             1: [MessageHandler(filters.ALL & ~filters.Regex("^[Оо]тмена$"),
                                voice_get_info)],
+            2: [MessageHandler(filters.Regex("^[Аа]втор$"), voice_get_info)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
                                                          voice_cancel)]
         },
@@ -150,7 +155,8 @@ async def voice_add(update, context):
     file_blob.close()
 
     await update.message.reply_text(
-        f"В дискографию {user_title} успешно добавлено {file_desc}")
+        f"В дискографию {user_title} успешно добавлено {file_desc}",
+        reply_markup=ReplyKeyboardRemove())
     return (await voice_end(update, context))
 
 # Stage 1
@@ -188,7 +194,8 @@ async def voice_cancel(update, context):
     """Отмена команды добавления."""
 
     context.user_data["voice_delete"].append(update.message)
-    await update.message.reply_text("Добавление войса отменено.")
+    await update.message.reply_text("Добавление войса отменено.",
+    reply_markup=ReplyKeyboardRemove())
     return (await voice_end(update, context))
 
 async def voice_end(update, context):
@@ -225,14 +232,36 @@ async def _voice_check_info(update, context):
             context.user_data["voice_user_title"] = res[2]
         else:
             s = "имя автора"
-
+    
+    if context.user_data["voice_desc"] == 'Автор':
+        s = "имя автора"
+        context.user_data["voice_desc"] = None
+        context.user_data["voice_user_name"] = None
+        context.user_data["voice_user_title"] = None
+        
     if not s:
         return None
 
-    msg = await update.message.reply_markdown_v2(
-        f"Теперь напишите {s} для этого войса\.\n\n"\
+    if s == 'описание':
+        helptext = (f"Теперь напишите {s} для этого войса\.\n\n"\
         "_Описание также можно ввести в команде: `/voice_add Продал все приставки`\n"\
-        "Напишите `отмена` чтобы отменить добавление войса_")
+        "Нажмите кнопку `Отмена` чтобы отменить добавление войса\n\n"\
+        "Если этот войс на самом деле принадлежит другому автору, то нажмите на кнопку `Автор`_")
+
+    if s == 'имя автора':
+        helptext = (f"Теперь напишите {s} для этого войса\.\n\n"\
+        "_Укажите текущий никнейм пользователя или его имя\.\n"\
+        "Нажмите кнопку `Отмена` чтобы отменить добавление войса_")
+
+    msg = await update.message.reply_markdown_v2(
+        helptext,
+    
+    # создать клавиатуру пользователю
+    reply_markup = ReplyKeyboardMarkup.from_row(
+        ["Отмена", "Автор"],
+        resize_keyboard = True,
+        one_time_keyboard = True,
+        selective = True))
 
     context.user_data["voice_delete"].append(msg)
 

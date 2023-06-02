@@ -8,9 +8,7 @@ import random
 from datetime import datetime, timezone
 
 from telegram import (
-    InlineQueryResultCachedSticker,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove)
+    InlineQueryResultCachedSticker)
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -55,16 +53,12 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points = [CommandHandler("q", quote_start)],
         states = {
-            0: [MessageHandler(filters.FORWARDED | filters.Regex("^[Гг]отово$"),
-                               quote_receive)],
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^[Оо]тмена$"),
-                               quote_get_info)],
-            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
-                                                         quote_cancel)]
+            0: [MessageHandler(filters.FORWARDED, quote_receive)],
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.FORWARDED,
+                                                         quote_create)]                          
         },
-        fallbacks = [MessageHandler(filters.Regex("^[Оо]тмена$"), quote_cancel)],
-        conversation_timeout = 120), group=4)
-
+        fallbacks = [MessageHandler(filters.ALL, quote_cancel)],
+        conversation_timeout = 0.5), group=4)
     # коллбек /quotelist
     app.add_handler(CallbackQueryHandler(
         quotelist_show_callback,
@@ -112,22 +106,12 @@ async def quote_start(update, context):
     # создать цитату из него одного
     if m := update.message.reply_to_message:
         status = await quote_create(update, context, [m])
+        if not status:
+            await update.message.reply_markdown_v2(
+            "Отправьте команду с описанием, например `/q А шо такое мужики не поняв`")
+            return (await quote_end(update, context))
         return status
-
-    # ждать новых сообщений через ConversationHandler
-    help_msg = await update.message.reply_markdown_v2(
-        "Теперь отправьте до 10 сообщений чтобы сделать из них цитату\.\n\n"\
-        "_Напишите `Готово` чтобы закончить отправку и создать цитату "\
-        "или `Отмена` чтобы отменить создание цитаты_",
-    # создать клавиатуру пользователю
-    reply_markup = ReplyKeyboardMarkup.from_row(
-        ["Готово", "Отмена"],
-        resize_keyboard = True,
-        one_time_keyboard = True,
-        selective = True))
-
-    context.user_data["quote_delete"].append(help_msg)
-
+    
     return 0 # stage 0
 
 # Stage 0
@@ -139,19 +123,14 @@ async def quote_receive(update, context):
     # все отправленные сообщения
     messages = context.user_data["quote_messages"]
 
-    # если пришло цитируемое сообщение
-    if not update.message.text in ["Готово", "готово"]:
-        # добавить сообщение в список
+    if len(messages) < 10:
         messages.append(update.message)
-
-        # если сообщений меньше лимита, то ожидать еще
-        if len(messages) < 10:
-            return 0
+        return 0
 
     context.user_data["quote_delete"].append(update.message)
 
     # создать цитату и закончить разговор
-    status = await quote_create(update, context, messages)
+    status = await quote_create(update, context)
     return status
 
 # Stage 1
@@ -170,7 +149,7 @@ async def quote_get_info(update, context):
     elif not context.user_data["quote_desc"]:
         context.user_data["quote_desc"] = utils.validate(
         utils.get_full_description(update.message))
-
+    
     # проверить наличие имени автора и описания
     # если нет, то ждать ввода от пользователя
     if res := await _quote_check_info(update, context):
@@ -185,10 +164,13 @@ async def quote_get_info(update, context):
 async def quote_cancel(update, context):
     """Отмена команды цитирования."""
 
-    await update.message.reply_text(
-        "Создание цитаты отменено.",
-        reply_markup=ReplyKeyboardRemove())
-
+    # Я хотел сделать так, чтобы это сообщение возникало при фоллбеке
+    # Но фоллбек нужно как то спровоцировать, хз как
+    # Сейчас на команду /q в пустоту не выводится никакой помощи
+    await update.message.reply_markdown_v2(
+    "Отправьте команду /q на сообщение\.\n\n"\
+    "Или выберите нужные \(до 10 штук\) и перешлите в чат с командой /q\.")
+    
     context.user_data["quote_messages"].append(update.message)
 
     return (await quote_end(update, context))
@@ -213,21 +195,31 @@ async def quote_end(update, context):
 # Create
 ############
 
-async def quote_create(update, context, messages):
+async def quote_create(update, context, message = None):
     """Команда создания новой цитаты."""
 
     # выборка необходимых данных
-    data = await _quote_get_message_data(messages)
+    if message:
+        data = await _quote_get_message_data(message)
+    else:
+        data = await _quote_get_message_data(context.user_data["quote_messages"])
+
     context.user_data["quote_user_name"] = data[0]
     context.user_data["quote_user_title"] = data[1]
-    context.user_data["quote_desc"] = data[2]
+
     cluster_list = data[3]
 
     if not cluster_list:
         await update.message.reply_text(
-            "Для данных сообщений нельзя создать цитату.",
-            reply_markup=ReplyKeyboardRemove())
+            "Для данных сообщений нельзя создать цитату.")
         return (await quote_end(update, context))
+    
+    if data[2] is None:
+        if context.args is None or not len(context.args):
+            return 0
+        context.user_data["quote_desc"] = ' '.join(context.args)
+    else:
+        context.user_data["quote_desc"] = data[2]
 
     context.user_data["quote_cluster"] = cluster_list
 
@@ -249,14 +241,12 @@ async def quote_add(update, context):
             context.user_data["quote_cluster"])
     except Exception:
         await update.message.reply_text(
-            "Данный тип сообщений не поддерживается.",
-            reply_markup=ReplyKeyboardRemove())
+            "Данный тип сообщений не поддерживается.")
         return (await quote_end(update, context))
 
     # отправляем цитату в чат
     quote_reply = await update.message.reply_sticker(
-        quote_img.getvalue(),
-        reply_markup=ReplyKeyboardRemove())
+        quote_img.getvalue())
 
     # выгружаем данные из пользователя
     user_title = context.user_data["quote_user_title"]
@@ -304,8 +294,7 @@ async def _quote_check_info(update, context):
     if not s:
         return None
 
-    msg = await update.message.reply_text(
-        f"Теперь напишите {s} для этой цитаты.")
+    msg = ' '.join(context.args)
 
     context.user_data["quote_delete"].append(msg)
 
@@ -389,16 +378,19 @@ async def _quote_get_message_data(messages):
 ####################
 
 async def send_random_quote(update, context):
-
     # дефолтная вероятность прислать случайный стикер в чат
     frequency = context.chat_data.get("quote_random", 1)
-    # время, прошедшее с последних апдейтов. Нужно для того,
-    # чтобы предотвратить ответы на слишком старые сообщения
-    dateOld = update.message.date
-    dateNow = datetime.now(timezone.utc)
-    timedelta = dateNow-dateOld
 
     if frequency == 0:
+        return
+    
+    # время, прошедшее с последних апдейтов. Нужно для того,
+    # чтобы предотвратить ответы на слишком старые сообщения
+    try:
+        dateOld = update.message.date
+        dateNow = datetime.now(timezone.utc)
+        timedelta = dateNow-dateOld
+    except:
         return
     
     if (timedelta.seconds) > 10:
