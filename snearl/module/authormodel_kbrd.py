@@ -15,7 +15,7 @@ from telegram import (
 
 def show_keyboard(chat_id, author_num, page, user_id,
                   get_authors_list, get_by_author,
-                  callback_name):
+                  callback_name, author_name):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     al = get_authors_list(chat_id)
     if not al:
@@ -26,7 +26,11 @@ def show_keyboard(chat_id, author_num, page, user_id,
 
     # ищем имя автора по номеру
     index_max = len(al) - 1
-    if 0 <= author_num <= index_max:
+    # либо сразу берем автора по переданному имени
+    if author_name in al:
+        file_author = author_name
+        author_num = al.index(file_author)
+    elif 0 <= author_num <= index_max:
         file_author = al[author_num]
     else:
         file_author = al[0]
@@ -167,12 +171,15 @@ async def callback(update, context,
 
 def get_text(chat_id, author_num, page,
              get_authors_list, get_by_author,
-             list_name):
+             list_name, author_name = None):
     """Возвращает текст сообщения"""
 
     if al := get_authors_list(chat_id):
         # найти автора по номеру из списка всех авторов чата
-        if 0 <= author_num < len(al):
+        if author_name in al:
+        # либо взять автора сразу по переданному имени
+            file_author = author_name
+        elif 0 <= author_num < len(al):
             file_author = al[author_num]
         else:
             file_author = al[0]

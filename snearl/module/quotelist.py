@@ -105,6 +105,15 @@ async def quote_start(update, context):
     # если команда отправлена ответом на сообщение,
     # создать цитату из него одного
     if m := update.message.reply_to_message:
+        # Сообщение при попытке ввести \q с номером
+        try: 
+            int(context.args[0])
+            await update.message.reply_markdown_v2(
+                    "Для создания множественной цитаты выделите нужные сообщения и "\
+                    "перешлите в чат с командой `/q`"
+                )
+        except: pass
+
         status = await quote_create(update, context, [m])
         if not status:
             await update.message.reply_markdown_v2(
@@ -449,9 +458,18 @@ async def quote_delete(update, context):
 
 async def quotelist_show(update, context):
     """Команда показа списка цитат."""
-    out_message = _quotelist_show_text(update.effective_chat.id, 0, 0)
+    # Пробуем взять цифру после команды
+    try:
+        if int(context.args[0]) > 0:
+            author_num = int(context.args[0])-1
+    except: author_num = 0
+    
+    # Берем имя автора после команды
+    user_name = ''.join(context.args)
+    
+    out_message = _quotelist_show_text(update.effective_chat.id, author_num, 0, user_name)
     markup = _quotelist_show_keyboard(
-        update.effective_chat.id, 0, 0, update.effective_user.id)
+        update.effective_chat.id, author_num, 0, update.effective_user.id, user_name)
     await update.message.reply_text(out_message, reply_markup=markup)
 
 async def quotelist_show_callback(update, context):
@@ -460,18 +478,20 @@ async def quotelist_show_callback(update, context):
                         _quotelist_show_text,
                         _quotelist_show_keyboard)
 
-def _quotelist_show_text(chat_id, author_num, page):
+def _quotelist_show_text(chat_id, author_num, page, author_name = None):
     """Возвращает текст сообщения /quotelist"""
     e = kbrd.get_text(chat_id, author_num, page,
                       db.authors_list,
                       db.by_author,
-                      "Список цитат")
+                      "Список цитат",
+                      author_name)
     return e
 
-def _quotelist_show_keyboard(chat_id, author_num, page, user_id):
+def _quotelist_show_keyboard(chat_id, author_num, page, user_id, author_name = None):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     e = kbrd.show_keyboard(chat_id, author_num, page, user_id,
                            db.authors_list,
                            db.by_author,
-                           "quotelist")
+                           "quotelist",
+                           author_name)
     return e
