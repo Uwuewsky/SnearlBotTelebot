@@ -4,6 +4,8 @@
 а затем отправлять в чат через поиск инлайн.
 """
 
+import re
+
 from telegram import InlineQueryResultCachedVoice
 from telegram.ext import (
     CommandHandler,
@@ -13,6 +15,7 @@ from telegram.ext import (
     filters)
 
 from snearl.module import utils
+from snearl.module import utils_media
 from snearl.module import userlist_db
 from snearl.instance import app, help_messages
 
@@ -45,12 +48,11 @@ def main():
     app.add_handler(ConversationHandler(
         entry_points = [CommandHandler("v", voice_start)],
         states = {
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^[Оо]тмена$"),
-                               voice_get_info)],
+            1: [MessageHandler(filters.ALL, voice_get_info)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
                                                          voice_cancel)]
         },
-        fallbacks = [MessageHandler(filters.Regex("^[Оо]тмена$"), voice_cancel)],
+        fallbacks = [MessageHandler(filters.ALL, voice_cancel)],
         conversation_timeout = 30), group=3)
 
     # коллбек /voicelist
@@ -87,6 +89,8 @@ def voice_query_result(i, e):
 async def voice_start(update, context):
     """Команда добавления нового голосового сообщения."""
 
+    args = context.args
+
     if await utils.check_access(update):
         return ConversationHandler.END
 
@@ -109,16 +113,30 @@ async def voice_start(update, context):
         return ConversationHandler.END
 
     # создать пользователю данные войса
-    file_desc = utils.validate(" ".join(context.args))
-    user_title = utils.validate(utils.get_sender_title_short(message))
-    user_name = utils.validate(utils.get_sender_username(message))
-
     context.user_data.clear()
     # список сообщений для удаления в конце команды
     context.user_data["voice_delete"] = []
-    context.user_data["voice_user_name"] = user_name
-    context.user_data["voice_user_title"] = user_title
-    context.user_data["voice_desc"] = file_desc
+    # сообщение пользователя с командой
+    context.user_data["voice_command"] = update.message
+
+    author_name = utils.get_sender_username(message)
+    author_title = utils.get_sender_title(message)
+
+    # если пользователь ввел после команды "а=1",
+    # то добавить войс автору #1 в этом чате
+    try:
+        m = re.match("a=(\d+)", args[0])
+        author_num = int(m.group(1)) - 1
+        args = args[1:]
+
+        al = db.authors_list(update.effective_chat.id)
+        author_name, author_title, _ = al[author_num]
+    except Exception:
+        pass
+
+    context.user_data["voice_user_name"] = author_name
+    context.user_data["voice_user_title"] = author_title
+    context.user_data["voice_desc"] = " ".join(args)
     context.user_data["voice_id"] = file_id
 
     # проверить наличие имени автора и описания
@@ -140,8 +158,8 @@ async def voice_add(update, context):
     user_title = context.user_data["voice_user_title"]
 
     # скачиваем войс и добавляем в БД
-    file_blob = await utils.download_file(file_id)
-    db.create_table()
+    file_blob = await utils_media.download_file(file_id)
+
     db.add(chat_id, file_id,
            user_name, user_title,
            file_desc, file_blob.getbuffer())
@@ -149,7 +167,7 @@ async def voice_add(update, context):
     db.con.commit()
     file_blob.close()
 
-    await update.message.reply_text(
+    await context.user_data["voice_command"].reply_text(
         f"В дискографию {user_title} успешно добавлено {file_desc}")
     return (await voice_end(update, context))
 
@@ -158,23 +176,18 @@ async def voice_add(update, context):
 
 async def voice_get_info(update, context):
     """
-    Функция получения имени автора/описания
-    если их нельзя извлечь из сообщения
+    Функция получения описания если
+    его нельзя извлечь из сообщения
     """
 
     context.user_data["voice_delete"].append(update.message)
 
     # взять из текста сообщения
-    if not context.user_data["voice_user_title"]:
-        context.user_data["voice_user_title"] = utils.validate(
-        utils.get_description(update.message))
+    if not context.user_data["voice_desc"]:
+        context.user_data["voice_desc"] = utils.get_description(update.message)
 
-    elif not context.user_data["voice_desc"]:
-        context.user_data["voice_desc"] = utils.validate(
-        utils.get_description(update.message))
-
-    # проверить наличие имени автора и описания
-    # если нет, то ждать ввода от пользователя
+    # проверить наличие описания если нет,
+    # то снова ждать ввода от пользователя
     if res := await _voice_check_info(update, context):
         return res # stage 1
 
@@ -188,7 +201,10 @@ async def voice_cancel(update, context):
     """Отмена команды добавления."""
 
     context.user_data["voice_delete"].append(update.message)
-    await update.message.reply_text("Добавление войса отменено.")
+
+    await context.user_data["voice_command"].reply_text(
+        "Добавление войса отменено.")
+
     return (await voice_end(update, context))
 
 async def voice_end(update, context):
@@ -209,30 +225,15 @@ async def voice_end(update, context):
 async def _voice_check_info(update, context):
     """Проверяет наличие имени автора и описания."""
 
-    # если автора или описания нет, то
-    # ждем пока пользователь их введет
-    s = None
+    # если описания нет, то ждем
+    # пока пользователь их введет
 
-    if not context.user_data["voice_desc"]:
-        s = "описание"
-
-    if not context.user_data["voice_user_title"]:
-
-        if res := userlist_db.find(
-            context.user_data["voice_user_name"],
-            context.user_data["voice_user_title"]):
-
-            context.user_data["voice_user_title"] = res[2]
-        else:
-            s = "имя автора"
-
-    if not s:
+    if context.user_data["voice_desc"]:
         return None
 
     msg = await update.message.reply_markdown_v2(
-        f"Теперь напишите {s} для этого войса\.\n\n"\
-        "_Описание также можно ввести в команде: `/voice_add Продал все приставки`\n"\
-        "Напишите `отмена` чтобы отменить добавление войса_")
+        f"Теперь напишите описание для этого войса\.\n\n"\
+        "_Описание можно ввести вручную:_ `/voice_add Продал все приставки`")
 
     context.user_data["voice_delete"].append(msg)
 
@@ -246,7 +247,7 @@ async def voice_delete(update, context):
     """Команда удаления голосового сообщения."""
     await datamodel.entry_delete(
         update, context,
-        db.authors_list,
+        db.authors_names_list,
         db.by_author,
         db.delete,
         "voice", "дискографии"
@@ -258,10 +259,25 @@ async def voice_delete(update, context):
 
 async def voicelist_show(update, context):
     """Команда показа списка голосовых сообщений."""
-    out_message = _voicelist_show_text(update.effective_chat.id, 0, 0)
+
+    # Пробуем взять цифру после команды
+    try:
+        author_num = int(context.args[0]) - 1
+    except Exception:
+        author_num = 0
+
+    # Берем имя автора после команды
+    author_name = " ".join(context.args)
+
+    out_message = _voicelist_show_text(
+        update.effective_chat.id, author_num, 0, author_name)
     markup = _voicelist_show_keyboard(
-        update.effective_chat.id, 0, 0, update.effective_user.id)
-    await update.message.reply_text(out_message, reply_markup=markup)
+        update.effective_chat.id, author_num, 0,
+        update.effective_user.id, author_name)
+
+    msg = await update.message.reply_text(out_message, reply_markup=markup)
+
+    utils.schedule_delete_message(context, "voice_list_delete", msg)
 
 async def voicelist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /voicelist."""
@@ -269,18 +285,21 @@ async def voicelist_show_callback(update, context):
                         _voicelist_show_text,
                         _voicelist_show_keyboard)
 
-def _voicelist_show_text(chat_id, author_num, page):
+def _voicelist_show_text(chat_id, author_num, page, author_name = None):
     """Возвращает текст сообщения /voicelist"""
     e = kbrd.get_text(chat_id, author_num, page,
-                      db.authors_list,
+                      db.authors_names_list,
                       db.by_author,
-                      "Список голосовых сообщений")
+                      "Список голосовых сообщений",
+                      author_name)
     return e
 
-def _voicelist_show_keyboard(chat_id, author_num, page, user_id):
+def _voicelist_show_keyboard(chat_id, author_num, page,
+                             user_id, author_name = None):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     e = kbrd.show_keyboard(chat_id, author_num, page, user_id,
-                           db.authors_list,
+                           db.authors_names_list,
                            db.by_author,
-                           "voicelist")
+                           "voicelist",
+                           author_name)
     return e

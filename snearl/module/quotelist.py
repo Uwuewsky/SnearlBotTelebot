@@ -5,11 +5,9 @@
 """
 
 import random
+import datetime
 
-from telegram import (
-    InlineQueryResultCachedSticker,
-    ReplyKeyboardMarkup,
-    ReplyKeyboardRemove)
+from telegram import InlineQueryResultCachedSticker
 from telegram.ext import (
     CommandHandler,
     MessageHandler,
@@ -18,6 +16,7 @@ from telegram.ext import (
     filters)
 
 from snearl.module import utils
+from snearl.module import utils_media
 from snearl.module import userlist_db
 from snearl.instance import app, help_messages
 
@@ -35,7 +34,8 @@ def main():
     help_messages.append("""
 *Хранить и отправлять стикеры\-цитаты инлайн*
   a\. Добавить цитату:
-      /q;
+      Ответить на сообщение командой /q;
+      Переслать несколько сообщений одновременно введя в поле сообщения /q;
   b\. Открыть инлайн список цитат:
       `@SnearlBot ц [ТекстЗапроса]`;
       Запросом может быть _имя автора_ или _строка из описания_;
@@ -49,20 +49,18 @@ def main():
     app.add_handler(CommandHandler("quote_delete", quote_delete))
     app.add_handler(CommandHandler("quotelist", quotelist_show))
     app.add_handler(CommandHandler("quote_random", quote_frequency))
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), send_random_quote))
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND),
+                                   send_random_quote))
 
     app.add_handler(ConversationHandler(
         entry_points = [CommandHandler("q", quote_start)],
         states = {
-            0: [MessageHandler(filters.FORWARDED | filters.Regex("^[Гг]отово$"),
-                               quote_receive)],
-            1: [MessageHandler(filters.ALL & ~filters.Regex("^[Оо]тмена$"),
-                               quote_get_info)],
+            0: [MessageHandler(filters.FORWARDED, quote_receive)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
-                                                         quote_cancel)]
+                                                         quote_timeout)]
         },
-        fallbacks = [MessageHandler(filters.Regex("^[Оо]тмена$"), quote_cancel)],
-        conversation_timeout = 120), group=4)
+        fallbacks = [MessageHandler(filters.ALL, quote_cancel)],
+        conversation_timeout = 1), group=4)
 
     # коллбек /quotelist
     app.add_handler(CallbackQueryHandler(
@@ -102,30 +100,24 @@ async def quote_start(update, context):
     context.user_data["quote_delete"] = []
     # список сообщений-репостов для цитаты
     context.user_data["quote_messages"] = []
-    context.user_data["quote_user_title"] = None
-    context.user_data["quote_user_name"] = None
-    context.user_data["quote_cluster"] = None
-    context.user_data["quote_desc"] = None
+    # сообщение пользователя с командой
+    context.user_data["quote_command"] = update.message
+    # описание цитаты из аргументов после команды
+    context.user_data["quote_desc"] = " ".join(context.args) or None
 
     # если команда отправлена ответом на сообщение,
     # создать цитату из него одного
     if m := update.message.reply_to_message:
-        status = await quote_create(update, context, [m])
-        return status
+        # Сообщение при попытке ввести \q с номером
+        try:
+            int(context.args[0])
+            await update.message.reply_text(
+                "Для создания множественной цитаты выделите нужные "\
+                "сообщения и перешлите в чат одновременно с командой /q.")
+        except Exception:
+            pass
 
-    # ждать новых сообщений через ConversationHandler
-    help_msg = await update.message.reply_markdown_v2(
-        "Теперь отправьте до 10 сообщений чтобы сделать из них цитату\.\n\n"\
-        "_Напишите `Готово` чтобы закончить отправку и создать цитату "\
-        "или `Отмена` чтобы отменить создание цитаты_",
-    # создать клавиатуру пользователю
-    reply_markup = ReplyKeyboardMarkup.from_row(
-        ["Готово", "Отмена"],
-        resize_keyboard = True,
-        one_time_keyboard = True,
-        selective = True))
-
-    context.user_data["quote_delete"].append(help_msg)
+        return (await quote_create(update, context, [m]))
 
     return 0 # stage 0
 
@@ -135,48 +127,28 @@ async def quote_start(update, context):
 async def quote_receive(update, context):
     """Получение сообщения для цитаты."""
 
-    # все отправленные сообщения
     messages = context.user_data["quote_messages"]
+    messages.append(update.message)
 
-    # если пришло цитируемое сообщение
-    if not update.message.text in ["Готово", "готово"]:
-        # добавить сообщение в список
-        messages.append(update.message)
+    # если сообщений меньше лимита, то ожидать еще
+    if len(messages) < 10:
+        return 0
 
-        # если сообщений меньше лимита, то ожидать еще
-        if len(messages) < 10:
-            return 0
+    # иначе создать цитату и закончить разговор
+    return (await quote_create(update, context, messages))
 
-    context.user_data["quote_delete"].append(update.message)
-
-    # создать цитату и закончить разговор
-    status = await quote_create(update, context, messages)
-    return status
-
-# Stage 1
+# Timeout
 ############
 
-async def quote_get_info(update, context):
-    """
-    Функция получения имени автора/описания
-    если их нельзя извлечь из сообщения.
-    """
-    # взять из текста сообщения
-    if not context.user_data["quote_user_title"]:
-        context.user_data["quote_user_title"] = utils.validate(
-        utils.get_full_description(update.message))
+async def quote_timeout(update, context):
+    """Таймаут команды цитирования."""
 
-    elif not context.user_data["quote_desc"]:
-        context.user_data["quote_desc"] = utils.validate(
-        utils.get_full_description(update.message))
+    # если есть сообщения для цитаты, то создать ее
+    if messages := context.user_data["quote_messages"]:
+        return (await quote_create(update, context, messages))
 
-    # проверить наличие имени автора и описания
-    # если нет, то ждать ввода от пользователя
-    if res := await _quote_check_info(update, context):
-        return res # stage 1
-
-    status = await quote_add(update, context)
-    return status
+    # иначе отмена
+    return (await quote_cancel(update, context))
 
 # Cancel
 ############
@@ -184,11 +156,10 @@ async def quote_get_info(update, context):
 async def quote_cancel(update, context):
     """Отмена команды цитирования."""
 
-    await update.message.reply_text(
-        "Создание цитаты отменено.",
-        reply_markup=ReplyKeyboardRemove())
-
-    context.user_data["quote_messages"].append(update.message)
+    await context.user_data["quote_command"].reply_text(
+        "Чтобы создать цитату:\n\n"\
+        "a. Отправьте команду /q ответом на сообщение.\n"\
+        "b. Либо перешлите до 10 сообщений в чат ОДНОВРЕМЕННО с командой /q.")
 
     return (await quote_end(update, context))
 
@@ -217,53 +188,38 @@ async def quote_create(update, context, messages):
 
     # выборка необходимых данных
     data = await _quote_get_message_data(messages)
-    context.user_data["quote_user_name"] = data[0]
-    context.user_data["quote_user_title"] = data[1]
-    context.user_data["quote_desc"] = data[2]
+    user_name = data[0]
+    user_title = data[1]
+    file_desc = context.user_data["quote_desc"] or data[2]
     cluster_list = data[3]
 
     if not cluster_list:
-        await update.message.reply_text(
-            "Для данных сообщений нельзя создать цитату.",
-            reply_markup=ReplyKeyboardRemove())
+        await context.user_data["quote_command"].reply_text(
+            "Для данных сообщений нельзя создать цитату.")
         return (await quote_end(update, context))
-
-    context.user_data["quote_cluster"] = cluster_list
-
-    # проверить наличие имени автора и описания
-    # если нет, то ждать ввода от пользователя
-    if res := await _quote_check_info(update, context):
-        return res # stage 1
-
-    status = await quote_add(update, context)
-    return status
-
-async def quote_add(update, context):
-    """Загружает цитату в чат и БД"""
 
     # рисуем саму цитату
     # файл в виде BytesIO
     try:
-        quote_img = drawing.draw_quote(
-            context.user_data["quote_cluster"])
+        quote_img = drawing.draw_quote(cluster_list)
     except Exception:
-        await update.message.reply_text(
-            "Данный тип сообщений не поддерживается.",
-            reply_markup=ReplyKeyboardRemove())
+        await context.user_data["quote_command"].reply_text(
+            "Данный тип сообщений не поддерживается.")
         return (await quote_end(update, context))
 
     # отправляем цитату в чат
-    quote_reply = await update.message.reply_sticker(
-        quote_img.getvalue(),
-        reply_markup=ReplyKeyboardRemove())
+    quote_reply = await context.user_data["quote_command"].reply_sticker(
+        quote_img.getvalue())
 
-    # выгружаем данные из пользователя
-    user_title = context.user_data["quote_user_title"]
-    user_name = context.user_data["quote_user_name"]
-    file_desc = context.user_data["quote_desc"]
+    # проверить наличие описания
+    if not file_desc:
+        file_desc = "Без названия"
+        await quote_reply.reply_markdown_v2(
+            f"Эта цитата сохранена как '{file_desc}'\. "\
+            "Описание можно ввести вручную, например:\n"\
+            "`/q Компромат`")
 
     # добавляем в базу данных
-    db.create_table()
     db.add(update.effective_chat.id,
            quote_reply.sticker.file_id,
            user_name, user_title,
@@ -272,43 +228,13 @@ async def quote_add(update, context):
     db.con.commit()
 
     # стикер уже отправлен как сообщение о добавлении
-    # await update.message.reply_text(
+    # await context.user_data["quote_command"].reply_text(
     #     f"В сборник афоризмов {user_title} успешно добавлено {file_desc}")
 
     return (await quote_end(update, context))
 
 # Вспомогательные функции
 ###########################
-
-async def _quote_check_info(update, context):
-    """Проверяет наличие имени автора и описания."""
-
-    # если автора или описания нет, то
-    # ждем пока пользователь их введет
-    s = None
-
-    if not context.user_data["quote_desc"]:
-        s = "описание"
-
-    if not context.user_data["quote_user_title"]:
-
-        if res := userlist_db.find(
-            context.user_data["quote_user_name"],
-            context.user_data["quote_user_title"]):
-
-            context.user_data["quote_user_title"] = res[2]
-        else:
-            s = "имя автора"
-
-    if not s:
-        return None
-
-    msg = await update.message.reply_text(
-        f"Теперь напишите {s} для этой цитаты.")
-
-    context.user_data["quote_delete"].append(msg)
-
-    return 1 # stage 1
 
 async def _quote_get_message_data(messages):
     """Извлекает нужные данные из сообщений."""
@@ -324,13 +250,13 @@ async def _quote_get_message_data(messages):
         message_user_name = utils.get_sender_username(message)
         message_user_title = utils.get_sender_title_short(message)
         message_text = utils.get_description(message)
-        message_picture = await utils.get_picture(message)
+        message_picture = await utils_media.get_picture(message)
 
         # переменные для записи в бд
         # записать первое доступное значение
         if not (user_name and user_title):
-            user_name = utils.validate(message_user_name)
-            user_title = utils.validate(message_user_title)
+            user_name = message_user_name
+            user_title = utils.get_sender_title(message)
         if not file_desc:
             file_desc = utils.validate(utils.get_full_description(message))
 
@@ -359,7 +285,7 @@ async def _quote_get_message_data(messages):
             continue
 
         # загрузить аватар
-        message_avatar = await utils.get_avatar(message)
+        message_avatar = await utils_media.get_avatar(message)
 
         # объект для рисования цитаты
         # представляет собой сообщения
@@ -388,6 +314,16 @@ async def _quote_get_message_data(messages):
 ####################
 
 async def send_random_quote(update, context):
+
+    # время, прошедшее с последних апдейтов. Нужно для того,
+    # чтобы предотвратить ответы на слишком старые сообщения
+    try:
+        date_now = datetime.datetime.now(datetime.timezone.utc)
+        timedelta = date_now - update.message.date
+        if (timedelta.seconds) > 120:
+            return
+    except Exception:
+        return
 
     # дефолтная вероятность прислать случайный стикер в чат
     frequency = context.chat_data.get("quote_random", 1)
@@ -423,7 +359,7 @@ async def quote_frequency(update, context):
         else:
             await update.message.reply_text(
                 "Частота должна быть между 0 и 100.")
-    except:
+    except Exception:
         await update.message.reply_markdown_v2(
         "Введите корректную частоту ответов в процентах\.\n"\
         "Например, `/quote_random 20`")
@@ -436,7 +372,7 @@ async def quote_delete(update, context):
     """Команда удаления цитаты."""
     await datamodel.entry_delete(
         update, context,
-        db.authors_list,
+        db.authors_names_list,
         db.by_author,
         db.delete,
         "quote", "сборника афоризмов"
@@ -448,10 +384,25 @@ async def quote_delete(update, context):
 
 async def quotelist_show(update, context):
     """Команда показа списка цитат."""
-    out_message = _quotelist_show_text(update.effective_chat.id, 0, 0)
+
+    # Пробуем взять цифру после команды
+    try:
+        author_num = int(context.args[0]) - 1
+    except Exception:
+        author_num = 0
+
+    # Берем имя автора после команды
+    author_name = " ".join(context.args)
+
+    out_message = _quotelist_show_text(
+        update.effective_chat.id, author_num, 0, author_name)
     markup = _quotelist_show_keyboard(
-        update.effective_chat.id, 0, 0, update.effective_user.id)
-    await update.message.reply_text(out_message, reply_markup=markup)
+        update.effective_chat.id, author_num, 0,
+        update.effective_user.id, author_name)
+
+    msg = await update.message.reply_text(out_message, reply_markup=markup)
+
+    utils.schedule_delete_message(context, "quote_list_delete", msg)
 
 async def quotelist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /quotelist."""
@@ -459,18 +410,22 @@ async def quotelist_show_callback(update, context):
                         _quotelist_show_text,
                         _quotelist_show_keyboard)
 
-def _quotelist_show_text(chat_id, author_num, page):
+def _quotelist_show_text(chat_id, author_num, page, author_name = None):
     """Возвращает текст сообщения /quotelist"""
     e = kbrd.get_text(chat_id, author_num, page,
-                      db.authors_list,
+                      db.authors_names_list,
                       db.by_author,
-                      "Список цитат")
+                      "Список цитат",
+                      author_name)
     return e
 
-def _quotelist_show_keyboard(chat_id, author_num, page, user_id):
+def _quotelist_show_keyboard(chat_id, author_num, page,
+                             user_id, author_name = None):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     e = kbrd.show_keyboard(chat_id, author_num, page, user_id,
-                           db.authors_list,
+                           db.authors_names_list,
                            db.by_author,
-                           "quotelist")
+                           "quotelist",
+                           author_name)
     return e
+
