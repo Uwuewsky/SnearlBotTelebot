@@ -2,14 +2,14 @@
 Модуль с разными полезными функциями.
 """
 
-import io, re, textwrap
+import re
+import textwrap
+import hashlib
 
 from telegram import Chat
 from telegram.constants import ChatMemberStatus
 
 import snearl.database as db
-from snearl.instance import app
-from snearl.module import userlist_db
 
 ####################
 # Функции проверки #
@@ -40,12 +40,35 @@ async def check_access(update):
         "У тебя нет прав использовать админскую команду.")
     return True
 
+####################
+# /автоудаление    #
+####################
+
+def schedule_delete_message(context, name, msg):
+    """Запланировать удаление сообщения."""
+    context.job_queue.run_once(delete_message, 60,
+                               name=f"{name}-{msg.id}",
+                               data=msg)
+
+async def delete_message(context):
+    """Удаляет сообщение по истечении минуты."""
+    try:
+        await context.job.data.delete()
+    except Exception:
+        pass
+
+
 ######################
 # Методы для Message #
 ######################
 
 # Строковые
 ############
+
+def md5(s):
+    if s:
+        return hashlib.md5(s.encode()).hexdigest()
+    return None
 
 def get_full_description(message):
     """Возвращает текст сообщения."""
@@ -119,86 +142,3 @@ def validate(text):
         if s:
             return textwrap.shorten(s, width=35, placeholder="")
     return None
-
-# Медиа функции
-################
-
-async def get_picture(message):
-    picture = None
-    file_id = None
-
-    try:
-        if message.photo:
-            file_id = message.photo[-1].file_id
-        if message.sticker:
-            file_id = message.sticker.file_id
-
-        if file_id:
-            picture = await download_file(file_id)
-    except:
-        pass
-
-    return picture
-
-async def get_avatar(message):
-
-    # попробовать загрузить из бд
-    user_id = userlist_db.find_id(
-        get_sender_username(message),
-        get_sender_title(message))
-    res = userlist_db.get_avatar(user_id)
-    if res:
-        return io.BytesIO(res)
-
-    # загрузить из телеграма
-    avatar = None
-
-    # загрузить из телеграма
-    try:
-        avatar_file = None
-        pl = None
-
-        if message.forward_from:
-            pl = await message.forward_from.get_profile_photos(limit=1)
-            if pl and pl.total_count > 0:
-                avatar_file = pl.photos[0][0]
-
-        elif message.forward_from_chat:
-            chat = await app.bot.get_chat(message.forward_from_chat.id)
-            if chat.photo:
-                avatar_file = chat.photo.small_file_id
-
-        elif message.forward_sender_name:
-            raise Exception
-
-        elif message.from_user:
-            pl = await message.from_user.get_profile_photos(limit=1)
-            if pl and pl.total_count > 0:
-                avatar_file = pl.photos[0][0]
-
-        if avatar_file:
-            avatar = await download_file(avatar_file)
-    except:
-        pass
-
-    user_id = userlist_db.find_id(
-            get_sender_username(message),
-            get_sender_title(message))
-
-    # попробовать загрузить из бд
-    if not avatar:
-        res = userlist_db.get_avatar(user_id)
-        if res:
-            avatar = io.BytesIO(res)
-    else:
-        # загрузить в бд
-        userlist_db.set_avatar(user_id, avatar.getvalue())
-        userlist_db.con.commit()
-
-    return avatar
-
-async def download_file(file_id):
-    file_bytes = io.BytesIO()
-    f = await app.bot.get_file(file_id)
-    await f.download_to_memory(file_bytes)
-    return file_bytes

@@ -3,7 +3,6 @@
 """
 
 import io
-import hashlib
 from types import SimpleNamespace
 
 from PIL import Image, ImageDraw, ImageFont
@@ -11,6 +10,7 @@ from pilmoji import Pilmoji
 from pilmoji.source import AppleEmojiSource
 
 import snearl.database as db
+from snearl.module import utils
 
 Param = SimpleNamespace(
     # шрифт никнейма
@@ -53,7 +53,7 @@ Param = SimpleNamespace(
 
     picture_max_size = (340, 340),
 
-    avatar_size = (48, 48),
+    avatar_size = 48,
     # визуальный отступ, не влияет на возвращаемый размер
     avatar_offset = (0, 7)
 )
@@ -290,24 +290,29 @@ def _draw_avatar(img, draw, avatar, nickname):
     size = Param.avatar_size
 
     # маска для круглой аватарки
-    # сначала создаем в 1.5 раза больше,
+    # сначала создаем в 2 раза больше,
     # затем уменьшаем чтобы границы не были резкими.....
-    mask_start_size = (int(size[0]*1.5), int(size[1]*1.5))
-    mask = Image.new("L", mask_start_size, 0)
-    ImageDraw.Draw(mask).ellipse((0, 0) + mask_start_size, fill=255)
-    mask = mask.resize(size)
+    mask_size = size * 2
+
+    mask = Image.new("L", (mask_size, mask_size), 0)
+
+    # отступы в 2 пикселя от краев чтобы не обрезалось резко
+    ImageDraw.Draw(mask).ellipse(
+        (2, 2, mask_size - 2, mask_size - 2),
+        fill=255)
+    mask = mask.resize((size, size))
 
     # рисуем аватарку в левом верхнем углу
     try:
         with Image.open(avatar) as a:
-            a.thumbnail(size)
+            a.thumbnail((size, size))
             a.putalpha(mask)
             img.paste(a, Param.avatar_offset)
     except Exception:
         return (0, 0, 0, 0)
 
     # возвращаем размеры аватарки (x1, y1, x2, y2)
-    return (0, 0) + size
+    return (0, 0, size, size)
 
 def _draw_fallback_avatar(nickname):
     # взять цвет по хэшу никнейма
@@ -352,8 +357,7 @@ def _merge_clusters(strips):
 
 def _get_color_by_hash(nickname):
     index_hash = "".join(filter(str.isdigit,
-                                hashlib.md5(nickname.encode())
-                                .hexdigest()))[:1]
+                                utils.md5(nickname)))[:1]
 
     index = int(index_hash or "0") - 5
     color = [

@@ -26,6 +26,7 @@ def show_keyboard(chat_id, author_num, page, user_id,
 
     # ищем имя автора по номеру
     index_max = len(al) - 1
+
     # либо сразу берем автора по переданному имени
     if author_name in al:
         file_author = author_name
@@ -41,7 +42,7 @@ def show_keyboard(chat_id, author_num, page, user_id,
     page_max = 0
     if l := get_by_author(chat_id, file_author):
         page_max = max(0, math.ceil(len(l)/25) - 1)
-    if page > page_max or page < 0:
+    if not (0 <= page <= page_max):
         page = 0
 
     # данные, передающиеся в коллбека при нажатии на кнопку

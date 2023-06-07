@@ -108,6 +108,11 @@ class ModelDB:
                                })
         return res.fetchall()
 
+    def authors_names_list(self, chat_id):
+        """Список авторов"""
+        al = self.authors_list(chat_id)
+        return [a[2] or a[1] for a in al]
+
     def authors_list(self, chat_id):
         """Список авторов"""
         res = self.cur.execute("SELECT DISTINCT user_name, user_title, user_nick "\
@@ -117,7 +122,7 @@ class ModelDB:
                                "WHERE chat_id=? "\
                                "ORDER BY user_title",
                                (chat_id, ))
-        return [a[2] or a[1] for a in res.fetchall()]
+        return [(*a,) for a in res.fetchall()]
 
     def search(self, query, offset, limit):
         """Функция поиска по тексту"""

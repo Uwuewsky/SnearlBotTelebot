@@ -4,16 +4,16 @@
 чтобы бот автоматически удалял репосты.
 """
 
-import math, time
+import time
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     MessageHandler, CommandHandler, CallbackQueryHandler, filters)
 
 from snearl.instance import app, help_messages
 from snearl.module import utils
-import snearl.module.blacklist_db as db
 from snearl.module import userlist_db
+import snearl.module.list_kbrd as kbrd
+import snearl.module.blacklist_db as db
 
 #####################
 # main              #
@@ -29,11 +29,11 @@ def main():
 
     app.add_handler(CommandHandler("block", block_group))
     app.add_handler(CommandHandler("allow", allow_group))
-    app.add_handler(CommandHandler("blacklist", show_blacklist))
+    app.add_handler(CommandHandler("blacklist", blacklist_show))
 
     app.add_handler(MessageHandler(filters.FORWARDED, delete_repost), group=5)
     app.add_handler(CallbackQueryHandler(
-        show_blacklist_callback,
+        blacklist_show_callback,
         pattern="^blacklist"))
 
 #####################
@@ -87,9 +87,8 @@ async def block_group(update, context):
             f"{user_title} уже в блеклисте.")
         return
 
-    db.create_table()
     db.add(chat_id, user_name, user_title)
-    userlist_db.update(user_name, utils.validate(user_title))
+    userlist_db.update(user_name, user_title)
     db.con.commit()
     await update.message.reply_text(
         f"Репосты из {user_title} добавлены в черный список.")
@@ -122,84 +121,34 @@ async def allow_group(update, context):
 # /blacklist        #
 #####################
 
-async def show_blacklist(update, context):
+async def blacklist_show(update, context):
     """Команда показа списка заблокированных чатов."""
-    out_message = _show_blacklist_text(update.effective_chat.id, 0)
-    markup = _show_blacklist_keyboard(
+
+    out_message = _blacklist_show_text(update.effective_chat.id, 0)
+
+    markup = _blacklist_show_keyboard(
         update.effective_chat.id, 0, update.effective_user.id)
-    await update.message.reply_text(out_message, reply_markup=markup)
 
-async def show_blacklist_callback(update, context):
+    msg = await update.message.reply_text(out_message, reply_markup=markup)
+
+    utils.schedule_delete_message(context, "black_list_delete", msg)
+
+async def blacklist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /blacklist."""
-    call_data = update.callback_query.data.split()
-    call_chat = call_data[1]
-    call_page = int(call_data[2])
-    call_user = call_data[3]
-    call_type = call_data[4]
+    await kbrd.callback(update, context,
+                        _blacklist_show_text,
+                        _blacklist_show_keyboard)
 
-    if call_user != str(update.callback_query.from_user.id):
-        await update.callback_query.answer(
-            "Вы можете листать только отправленный Вам список.")
-        return
-    if call_type == "pageinfo":
-        await update.callback_query.answer(f"Страница #{call_page+1}")
-        return
+def _blacklist_show_text(chat_id, page):
+    """Возвращает текст сообщения /blacklist"""
+    e = kbrd.get_text(chat_id, page,
+                      db.by_chat,
+                      "Список заблокированных чатов")
+    return e
 
-    if call_type == "pageback":
-        call_page -= 1
-    if call_type == "pagenext":
-        call_page += 1
-
-    out_message = _show_blacklist_text(call_chat, call_page)
-    markup = _show_blacklist_keyboard(call_chat, call_page, call_user)
-
-    await update.callback_query.edit_message_text(
-        out_message, reply_markup=markup)
-
-def _show_blacklist_keyboard(chat_id, page, user_id):
+def _blacklist_show_keyboard(chat_id, page, user_id):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
-    bl = db.by_chat(chat_id)
-    if not bl:
-        return None
-
-    page_max = max(0, math.ceil(len(bl)/25) - 1)
-    if page > page_max or page < 0:
-        page = 0
-
-    call_data = f"blacklist {chat_id} {page} {user_id}"
-
-    btn_back = InlineKeyboardButton("< Назад",
-                                    callback_data=f"{call_data} pageback")
-    btn_info = InlineKeyboardButton(f"{page+1}/{page_max+1}",
-                                    callback_data=f"{call_data} pageinfo")
-    btn_next = InlineKeyboardButton("Вперед >",
-                                    callback_data=f"{call_data} pagenext")
-
-    keyboard = []
-    if 0 == page < page_max:
-        keyboard += [btn_info, btn_next]
-    elif page_max == page != 0:
-        keyboard += [btn_back, btn_info]
-    elif 0 < page < page_max:
-        keyboard += [btn_back, btn_info, btn_next]
-    else:
-        keyboard += [btn_info]
-
-    reply_markup = InlineKeyboardMarkup([keyboard])
-
-    return reply_markup
-
-def _show_blacklist_text(chat_id, page):
-    """Функция, возвращающая текст сообщения с постраничной клавиатурой."""
-    if bl := db.by_chat(chat_id):
-        s = "Список заблокированных чатов:\n\n"
-        offset = page * 25
-
-        if not bl[offset:offset+25]:
-            offset = 0
-
-        for i, e in enumerate(bl[offset:offset+25], start=offset+1):
-            s += f"{i}) {e[1]}\n"
-
-        return s
-    return "Список заблокированных чатов пуст."
+    e = kbrd.show_keyboard(chat_id, page, user_id,
+                           db.by_chat,
+                           "blacklist")
+    return e
