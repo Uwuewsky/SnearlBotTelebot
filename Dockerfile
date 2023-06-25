@@ -1,6 +1,6 @@
 FROM python:3.11
-WORKDIR /SnearlBotTelebot
-COPY . /SnearlBotTelebot/
-EXPOSE 80/tcp
+WORKDIR /snearl
+COPY ./requirements.txt ./
 RUN pip install -r requirements.txt
-CMD ["python", "start_bot.py"]
+COPY ./ ./
+RUN chmod -R 777 .
