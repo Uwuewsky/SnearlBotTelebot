@@ -4,8 +4,21 @@ services:
   telegram-bot:
     container_name: snearl
     working_dir: /snearl
+    volumes:
+      # For volume
+      #- type: volumes
+      #  source: snearlbotdata
+      #  target: /snearl/data
+
+      # For folder
+      - type: bind
+        source: ./data
+        target: /snearl/data
     restart: always
     build:
       context: .
       dockerfile: Dockerfile
     command: sh -c "python -m snearl"
+
+#volumes:
+#  snearlbotdata:
