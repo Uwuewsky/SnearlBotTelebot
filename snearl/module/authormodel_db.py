@@ -101,7 +101,7 @@ class ModelDB:
                                f"ON Userlist.id = {self.table}.user_id "\
                                "WHERE (chat_id=:chat_id AND user_title=:query) "\
                                "OR (chat_id=:chat_id AND user_nick=:query) "\
-                               "ORDER BY file_desc",
+                               "ORDER BY LOWER(file_desc)",
                                {
                                    "chat_id": chat_id,
                                    "query": user_title
@@ -138,13 +138,34 @@ class ModelDB:
                                "OR LOWER(user_nick) LIKE :query "\
                                "OR LOWER(file_desc) LIKE :query "\
 
-                               "ORDER BY user_nick, user_title, file_desc "\
+                               "ORDER BY user_nick, user_title, LOWER(file_desc) "\
                                "LIMIT :limit "\
                                "OFFSET :offset",
                                {
                                    "query": query,
                                    "limit": limit,
                                    "offset": offset
+                               })
+        return res.fetchall()
+
+    def search_by_author(self, user_title, query):
+        """Функция поиска по тексту у автора"""
+        user_title = f"%{user_title}%".lower()
+        query = f"%{query}%".lower()
+        res = self.cur.execute("SELECT chat_id, file_id, "\
+                               "user_title, user_nick, file_desc, type "\
+
+                               f"FROM {self.table} "\
+                               "JOIN Userlist "\
+                               f"ON Userlist.id = {self.table}.user_id "\
+
+                               "WHERE LOWER(user_title) LIKE :user_title "\
+                               "AND LOWER(file_desc) LIKE :query "\
+
+                               "ORDER BY LOWER(file_desc) ",
+                               {
+                                   "user_title": user_title,
+                                   "query": query
                                })
         return res.fetchall()
 

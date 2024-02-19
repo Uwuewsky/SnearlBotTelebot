@@ -46,7 +46,7 @@ async def check_access(update):
 
 def schedule_delete_message(context, name, msg):
     """Запланировать удаление сообщения."""
-    context.job_queue.run_once(delete_message, 60,
+    context.job_queue.run_once(delete_message, 5 * 60,
                                name=f"{name}-{msg.id}",
                                data=msg)
 

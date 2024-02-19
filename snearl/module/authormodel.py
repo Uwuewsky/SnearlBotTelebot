@@ -42,7 +42,7 @@ async def entry_delete(update, context,
 
     except Exception:
         await update.message.reply_markdown_v2(
-            "Нужно указать номера автора и войса из "\
+            "Нужно указать номер автора и удаляемой записи из "\
             f"/{list_name}list, например:\n"\
             f"`/{list_name}_delete 2 15`")
         return

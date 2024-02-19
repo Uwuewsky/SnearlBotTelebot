@@ -35,13 +35,17 @@ def main():
 *Хранить и отправлять стикеры\-цитаты инлайн*
   a\. Добавить цитату:
       Ответить на сообщение командой /q;
-      Переслать несколько сообщений одновременно введя в поле сообщения /q;
+      Переслать несколько сообщений, одновременно введя в поле сообщения /q;
+
   b\. Открыть инлайн список цитат:
       `@SnearlBot ц [ТекстЗапроса]`;
       Запросом может быть _имя автора_ или _строка из описания_;
+
   c\. Удалить цитату:
-      `/quote_delete [НомерАвтора] [НомерЦитаты]`;
+      `/quote_delete <НомерАвтора> <НомерЦитаты>`;
+
   d\. Список цитат: /quotelist;
+
   e\. Частота случайных цитат: /quote\_random;
 """)
 
@@ -214,8 +218,20 @@ async def quote_create(update, context, messages):
     # проверить наличие описания
     if not file_desc:
         file_desc = "Без названия"
+
+        # назвать запись "Без названия 2" и т.д.
+        if nameless_list := db.search_by_author(user_title, file_desc):
+            file_num = 1
+            claimed_names = [i[4] for i in nameless_list]
+
+            for i in claimed_names:
+                if not file_desc in claimed_names:
+                    break
+                file_num += 1
+                file_desc = f"Без названия {file_num}"
+
         await quote_reply.reply_markdown_v2(
-            f"Эта цитата сохранена как '{file_desc}'\. "\
+            f"Эта цитата сохранена как «{file_desc}»\. "\
             "Описание можно ввести вручную, например:\n"\
             "`/q Компромат`")
 
@@ -320,7 +336,7 @@ async def send_random_quote(update, context):
     try:
         date_now = datetime.datetime.now(datetime.timezone.utc)
         timedelta = date_now - update.message.date
-        if (timedelta.seconds) > 120:
+        if -15 * 60 > timedelta.total_seconds() > 15 * 60:
             return
     except Exception:
         return

@@ -73,6 +73,10 @@ def global_search(query, offset, limit):
     query = f"%{query}%".lower()
     res = db.cur.execute("SELECT chat_id, file_id, "\
                          "user_title, user_nick, file_desc, type "\
+                         "FROM ("\
+
+                         "SELECT chat_id, file_id, "\
+                         "user_title, user_nick, file_desc, type "\
                          "FROM Voicelist "\
                          "JOIN Userlist "\
                          "ON Userlist.id = Voicelist.user_id "\
@@ -91,7 +95,8 @@ def global_search(query, offset, limit):
                          "OR LOWER(user_nick) LIKE :query "\
                          "OR LOWER(file_desc) LIKE :query "\
 
-                         "ORDER BY type DESC, user_nick, user_title "\
+                         ")"\
+                         "ORDER BY type DESC, user_nick, user_title, LOWER(file_desc) "\
                          "LIMIT :limit "\
                          "OFFSET :offset",
                          {"query": query, "limit": limit, "offset": offset})

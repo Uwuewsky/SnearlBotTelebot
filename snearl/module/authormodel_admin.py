@@ -55,10 +55,17 @@ async def init_table(update, context,
     """
     Загрузка файлов в Телеграм для дальнейшего использования.
     """
-    # папка с импортируемыми войсами
+    # папка с импортируемыми записями
     table_dir = db.import_dir / dir_name
     if not table_dir.is_dir():
-        print(f"Папка импорта не найдена:\n{table_dir}")
+        print(f"[ИМПОРТ ПРЕРВАН] Папка импорта не найдена:\n{table_dir}")
+        return
+
+    if (table_dir / "YourChatIdHere").is_dir():
+        print(f"[ИМПОРТ ПРЕРВАН] Найдена папка «{table_dir}/YourChatIdHere».\n"\
+              "Это папка с тестовым набором данных.\n"\
+              "Вам нужно переименовать YourChatIdHere в ID вашего чата (/info) или удалить эту папку,\n"\
+              "иначе вы не сможете управлять этими данными через команды в Telegram.")
         return
 
     file_count = 0

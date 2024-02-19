@@ -14,8 +14,8 @@ def userlist_main():
 
         offset = page * max_users
         for user in user_list[offset:offset+max_users]:
-            print(f" ID: {user[0]:2} | {user[1] or '-':15.15} | {user[2] or '-':25.25} "\
-                  f"| {user[3] or '-':15.15} | {'Avatar' if user[4] else '-':6} |")
+            print(f" ID: {user[0]:2} | {user[1] or '-':13.13} | {user[2] or '-':23.23} "\
+                  f"| {user[3] or '-':13.13} | {'Avatar' if user[4] else '-':6} |")
         a = input("> ")
 
         if a == "q":
