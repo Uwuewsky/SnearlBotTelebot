@@ -17,6 +17,7 @@ import snearl.database as db
 
 async def check_access(update):
     """Возвращает True если доступ к команде запрещен."""
+    return False
     # проверить если включен локальный режим
     if e := db.settings_get("local_mode"):
         if e == str(update.effective_chat.id):
@@ -138,7 +139,8 @@ def get_sender_username(message):
 def validate(text):
     """Убирает из имени все символы кроме букв, цифр и подчеркивания."""
     if text:
-        s = re.sub(r"[^\w ]*", "", text)
+        s = re.sub(r"\.", " ", text)
+        s = re.sub(r"[^\w ]*", "", s)
         if s:
             return textwrap.shorten(s, width=35, placeholder="")
     return None

@@ -60,8 +60,7 @@ def main():
         entry_points = [CommandHandler("q", quote_start)],
         states = {
             0: [MessageHandler(filters.FORWARDED, quote_receive)],
-            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
-                                                         quote_timeout)]
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, quote_timeout)]
         },
         fallbacks = [MessageHandler(filters.ALL, quote_cancel)],
         conversation_timeout = 1), group=4)
@@ -95,8 +94,8 @@ def quote_query_result(i, e):
 async def quote_start(update, context):
     """Начало команды цитирования."""
 
-    """ if await utils.check_access(update):
-        return ConversationHandler.END """
+    if await utils.check_access(update):
+        return ConversationHandler.END
 
     # создать пользователю список сообщений
     context.user_data.clear()
@@ -112,17 +111,7 @@ async def quote_start(update, context):
     # если команда отправлена ответом на сообщение,
     # создать цитату из него одного
     if m := update.message.reply_to_message:
-        # Сообщение при попытке ввести \q с номером
-        try:
-            int(context.args[0])
-            await update.message.reply_text(
-                "Для создания множественной цитаты выделите нужные "\
-                "сообщения и перешлите в чат одновременно с командой /q.")
-        except Exception:
-            pass
-
         return (await quote_create(update, context, [m]))
-
     return 0 # stage 0
 
 # Stage 0
@@ -331,20 +320,22 @@ async def _quote_get_message_data(messages):
 
 async def send_random_quote(update, context):
 
-    # время, прошедшее с последних апдейтов. Нужно для того,
-    # чтобы предотвратить ответы на слишком старые сообщения
-    try:
-        date_now = datetime.datetime.now(datetime.timezone.utc)
-        timedelta = date_now - update.message.date
-        if -15 * 60 > timedelta.total_seconds() > 15 * 60:
-            return
-    except Exception:
+    if not update:
+        return
+    if not update.message:
         return
 
     # дефолтная вероятность прислать случайный стикер в чат
     frequency = context.chat_data.get("quote_random", 1)
-
     if frequency == 0:
+        return
+
+    # время, прошедшее с последних апдейтов. Нужно для того,
+    # чтобы предотвратить ответы на слишком старые сообщения
+    date_now = datetime.datetime.now(datetime.timezone.utc)
+    timedelta = date_now - update.message.date
+    delta_skip = datetime.timedelta(minutes=15)
+    if timedelta > delta_skip:
         return
 
     r = random.randint(1, 100)

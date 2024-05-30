@@ -12,11 +12,16 @@ from pilmoji.source import AppleEmojiSource
 import snearl.database as db
 from snearl.module import utils
 
+# цитаты выглядят чётче, но размер увеличивается тоже
+# что не критично, бд с пятью сотнями цитат занимает мегабайт 15
+# теперь будет 30 мегабайт
+scaling = 2
+
 Param = SimpleNamespace(
     # шрифт никнейма
-    font_header = ImageFont.truetype(str(db.data_dir / "NotoSans-Bold.ttf"), 21),
+    font_header = ImageFont.truetype(str(db.data_dir / "NotoSans-Bold.ttf"), round(21 * scaling)),
     # шрифт текста
-    font_content = ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"), 18),
+    font_content = ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"), round(18 * scaling)),
 
     # параметры сохранения в блоб
     save_format = "webp",
@@ -25,37 +30,37 @@ Param = SimpleNamespace(
 
     # максимальная высота цитаты
     # все последующие кластеры сообщений будут отброшены
-    image_max_height = 2500,
+    image_max_height = round(2500 * scaling),
 
     # макс размер кластера сообщений
-    cluster_max_size = (768, 1536),
+    cluster_max_size = (round(768 * scaling), round(1536 * scaling)),
     # отступ между кластерами
-    cluster_margin = 10,
+    cluster_margin = round(10 * scaling),
 
     # отступ сообщения от аватарки
-    avatar_margin = 5,
+    avatar_margin = round(5 * scaling),
 
     # отступ между сообщениями
-    message_margin = 7,
+    message_margin = round(7 * scaling),
     # отступ текста от границ
-    message_padding = 10,
+    message_padding = round(10 * scaling),
     # отступ контента сверху от никнейма
-    content_padding = 7,
+    content_padding = round(7 * scaling),
 
     # параметры заднего фона
-    background_color = (40, 40, 55, 255),
-    background_radius = 16,
+    background_color = (35, 35, 45, 255),
+    background_radius = round(16 * scaling),
 
     # рисовать текст чуть выше
     # чтобы он был горизонтально по центру
-    text_offset = -4,
+    text_offset = round(-4 * scaling),
     text_color = (245, 245, 245),
 
-    picture_max_size = (340, 340),
+    picture_max_size = (round(340 * scaling), round(340 * scaling)),
 
-    avatar_size = 48,
+    avatar_size = round(48 * scaling),
     # визуальный отступ, не влияет на возвращаемый размер
-    avatar_offset = (0, 7)
+    avatar_offset = (round(0 * scaling), round(7 * scaling))
 )
 
 ####################
@@ -77,10 +82,7 @@ def draw_quote(message_list):
     if not strips:
         raise ValueError
 
-    if len(strips) == 1:
-        quote_img = strips[0]
-    else:
-        quote_img = _merge_clusters(strips)
+    quote_img = _merge_clusters(strips)
 
     # сохраняем в BytesIO
     file_bytes = io.BytesIO()
@@ -305,7 +307,7 @@ def _draw_avatar(img, draw, avatar, nickname):
     # рисуем аватарку в левом верхнем углу
     try:
         with Image.open(avatar) as a:
-            a.thumbnail((size, size))
+            a = a.resize((size, size))
             a.putalpha(mask)
             img.paste(a, Param.avatar_offset)
     except Exception:
@@ -333,6 +335,9 @@ def _draw_fallback_avatar(nickname):
 
 def _merge_clusters(strips):
     """Склеивает из отдельных кластеров цитату целиком"""
+    # if len(strips) == 1:
+        # return strips[0]
+
     # отступ между кластерами сообщений
     margin = Param.cluster_margin
     img_w = max(s.width for s in strips)
@@ -352,6 +357,18 @@ def _merge_clusters(strips):
         crop_w = max(crop_w, strip.width)
 
     crop_h = offset - margin
+    # TODO
+    # ########
+    # удалить вот это вот
+    # и раскомментировать if в начале функции
+    # если нужно убрать отступ снизу для мобильного клиента
+    # там дата закрывает половину стикера
+    i1 = crop_h/4
+    i2 = min(2.5, (crop_w/crop_h) - 0.8)
+    coeff = round(i1 * i2)
+    i3 = max(0, min(crop_h/2, coeff))
+    crop_h += i3
+    # ########
     img = img.crop((0, 0, crop_w, crop_h))
     return img
 

@@ -30,14 +30,17 @@ def userlist_main():
         user_id = int(a)
 
         print("Выберите действие:\n"\
-              "1. Установать никнейм\n"\
-              "2. Установить аватар")
+              "1. Установить никнейм\n"\
+              "2. Установить аватар\n"\
+              "3. Сохранить аватар в файл")
         a = input("> ")
 
         if a == "1":
             _set_nick(user_id)
         if a == "2":
             _set_avatar(user_id)
+        if a == "3":
+            _download_avatar(user_id)
         db.con.commit()
 
 def _set_nick(user_id):
@@ -58,7 +61,8 @@ def _set_avatar(user_id):
     files += [*path.glob("*.png")]
 
     print("Выберите файл:\n"\
-          "(null чтобы удалить ник)")
+          "(желательно, чтобы файл был 160x160 пикселей)"
+          "(null чтобы удалить аватар)")
 
     if files:
         for i, f in enumerate(files):
@@ -76,3 +80,10 @@ def _set_avatar(user_id):
     else:
         db.set_avatar(user_id, files[int(a)].read_bytes())
         print("\nАватар установлен")
+
+def _download_avatar(user_id):
+    path = Path(".")
+    ava = db.get_avatar(user_id)
+    with open(f"{user_id}", "wb") as f:
+        f.write(ava)
+    print(f"Файл «{path}/{user_id}» сохранён")

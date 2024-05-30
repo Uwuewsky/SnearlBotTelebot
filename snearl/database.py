@@ -12,7 +12,7 @@ from pathlib import Path
 # Общие функции и переменные #
 ##############################
 
-data_dir = Path("SnearlBotTelebot/data")
+data_dir = Path("./data")
 import_dir = data_dir / "import"
 export_dir = data_dir / "export"
 

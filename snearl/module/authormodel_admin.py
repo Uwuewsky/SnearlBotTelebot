@@ -4,6 +4,7 @@
 
 import time
 import json
+import pathlib
 
 import snearl.database as db
 from snearl.module import utils
@@ -26,7 +27,7 @@ def export_table(dir_name, file_ext, db_get_all, db_get_blob):
         file_desc = utils.validate(file_desc) or "Без названия"
         user_dir = utils.validate(user_title) or utils.validate(user_name) or utils.md5(user_title)
 
-        file_dir = table_dir / chat_id / user_dir
+        file_dir = table_dir / user_dir
         info_file = file_dir / "info.json"
 
         file_path = (file_dir / file_desc).with_suffix(file_ext)
