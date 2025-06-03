@@ -4,6 +4,8 @@
 
 import io
 
+from telegram import MessageOrigin
+
 from snearl.instance import app
 from snearl.module import utils
 from snearl.module import userlist_db
@@ -45,19 +47,21 @@ async def get_avatar(message):
         avatar_file = None
         pl = None
 
-        if message.forward_from:
-            pl = await message.forward_from.get_profile_photos(limit=1)
-            if pl and pl.total_count > 0:
-                avatar_file = pl.photos[0][0]
-
-        elif message.forward_from_chat:
-            chat = await app.bot.get_chat(message.forward_from_chat.id)
-            if chat.photo:
-                avatar_file = chat.photo.small_file_id
-
-        elif message.forward_sender_name:
-            raise Exception
-
+        if message.forward_origin:
+            if message.forward_origin.type == MessageOrigin.USER:
+                pl = await message.forward_origin.sender_user.get_profile_photos(limit=1)
+                if pl and pl.total_count > 0:
+                    avatar_file = pl.photos[0][0]
+            if message.forward_origin.type == MessageOrigin.HIDDEN_USER:
+                raise Exception
+            if message.forward_origin.type == MessageOrigin.CHAT:
+                chat = await app.bot.get_chat(message.forward_origin.sender_chat.id)
+                if chat.photo:
+                    avatar_file = chat.photo.small_file_id
+            if message.forward_origin.type == MessageOrigin.CHANNEL:
+                chat = await app.bot.get_chat(message.forward_origin.chat.id)
+                if chat.photo:
+                    avatar_file = chat.photo.small_file_id
         elif message.from_user:
             pl = await message.from_user.get_profile_photos(limit=1)
             if pl and pl.total_count > 0:

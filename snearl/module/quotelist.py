@@ -232,10 +232,6 @@ async def quote_create(update, context, messages):
     userlist_db.update(user_name, user_title)
     db.con.commit()
 
-    # стикер уже отправлен как сообщение о добавлении
-    # await context.user_data["quote_command"].reply_text(
-    #     f"В сборник афоризмов {user_title} успешно добавлено {file_desc}")
-
     return (await quote_end(update, context))
 
 # Вспомогательные функции

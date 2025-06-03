@@ -6,7 +6,7 @@ import re
 import textwrap
 import hashlib
 
-from telegram import Chat
+from telegram import Chat, MessageOrigin
 from telegram.constants import ChatMemberStatus
 
 import snearl.database as db
@@ -100,12 +100,15 @@ def get_sender_title_short(message):
 def get_sender_id(message):
     """Возвращает id отправителя."""
     s = None
-    if message.forward_from:
-        s = message.forward_from.id
-    elif message.forward_sender_name:
-        s = None
-    elif message.forward_from_chat:
-        s = message.forward_from_chat.id
+    if message.forward_origin:
+        if message.forward_origin.type == MessageOrigin.USER:
+            s = message.forward_origin.sender_user.id
+        if message.forward_origin.type == MessageOrigin.HIDDEN_USER:
+            pass
+        if message.forward_origin.type == MessageOrigin.CHAT:
+            s = message.forward_origin.sender_chat.id
+        if message.forward_origin.type == MessageOrigin.CHANNEL:
+            s = message.forward_origin.chat.id
     elif message.from_user:
         s = message.from_user.id
     return s
@@ -113,12 +116,15 @@ def get_sender_id(message):
 def get_sender_title(message):
     """Возвращает имя отправителя."""
     s = None
-    if message.forward_from:
-        s = message.forward_from.full_name
-    elif message.forward_sender_name:
-        s = message.forward_sender_name
-    elif message.forward_from_chat:
-        s = message.forward_from_chat.effective_name
+    if message.forward_origin:
+        if message.forward_origin.type == MessageOrigin.USER:
+            s = message.forward_origin.sender_user.full_name
+        if message.forward_origin.type == MessageOrigin.HIDDEN_USER:
+            s = message.forward_origin.sender_user_name
+        if message.forward_origin.type == MessageOrigin.CHAT:
+            s = message.forward_origin.sender_chat.effective_name
+        if message.forward_origin.type == MessageOrigin.CHANNEL:
+            s = message.forward_origin.chat.effective_name
     elif message.from_user:
         s = message.from_user.full_name
     return s
@@ -126,12 +132,15 @@ def get_sender_title(message):
 def get_sender_username(message):
     """Возвращает @тег_пользователя"""
     s = None
-    if message.forward_from:
-        s = message.forward_from.username
-    elif message.forward_sender_name:
-        s = None
-    elif message.forward_from_chat:
-        s = message.forward_from_chat.username
+    if message.forward_origin:
+        if message.forward_origin.type == MessageOrigin.USER:
+            s = message.forward_origin.sender_user.username
+        if message.forward_origin.type == MessageOrigin.HIDDEN_USER:
+            pass
+        if message.forward_origin.type == MessageOrigin.CHAT:
+            s = message.forward_origin.sender_chat.username
+        if message.forward_origin.type == MessageOrigin.CHANNEL:
+            s = message.forward_origin.chat.username
     elif message.from_user:
         s = message.from_user.username
     return s

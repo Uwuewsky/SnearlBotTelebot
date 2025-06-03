@@ -97,11 +97,10 @@ def voice_query_result(i, e):
 async def voice_start(update, context):
     """Команда добавления нового голосового сообщения."""
 
-    args = context.args
-
     if await utils.check_access(update):
         return ConversationHandler.END
 
+    args = context.args
     message = update.message.reply_to_message
 
     if not message:
