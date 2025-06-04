@@ -12,13 +12,14 @@ from snearl.instance import app
 from snearl.module.voicelist import voice_query_result, voice_search
 from snearl.module.quotelist import quote_query_result, quote_search
 
+
 def main():
     app.add_handler(InlineQueryHandler(global_inline_query))
 
+
 async def global_inline_query(update, context):
-    """
-    Глобальная инлайн-функция.
-    """
+    """Глобальная инлайн-функция."""
+
     query = update.inline_query.query
     offset = update.inline_query.offset
     offset = int(offset) if offset else 0
@@ -50,9 +51,9 @@ async def global_inline_query(update, context):
         s = f"По запросу {query} ничего не найдено"
         results = [
             InlineQueryResultArticle(
-                id = "0",
-                title = s,
-                input_message_content = InputTextMessageContent(s))
+                id="0",
+                title=s,
+                input_message_content=InputTextMessageContent(s))
         ]
 
     try:
@@ -62,42 +63,44 @@ async def global_inline_query(update, context):
         s = f"Во время запроса {query} произошла ошибка"
         await update.inline_query.answer([
             InlineQueryResultArticle(
-                id = "0",
-                title = s,
-                description = str(e),
-                input_message_content = InputTextMessageContent(
+                id="0",
+                title=s,
+                description=str(e),
+                input_message_content=InputTextMessageContent(
                     f"{s}:\n{str(e)}"))
         ])
 
+
 def global_search(query, offset, limit):
     query = f"%{query}%".lower()
-    res = db.cur.execute("SELECT chat_id, file_id, "\
-                         "user_title, user_nick, file_desc, type "\
-                         "FROM ("\
+    res = db.cur.execute("SELECT chat_id, file_id, "
+                         "user_title, user_nick, file_desc, type "
+                         "FROM ("
 
-                         "SELECT chat_id, file_id, "\
-                         "user_title, user_nick, file_desc, type "\
-                         "FROM Voicelist "\
-                         "JOIN Userlist "\
-                         "ON Userlist.id = Voicelist.user_id "\
-                         "WHERE LOWER(user_title) LIKE :query "\
-                         "OR LOWER(user_nick) LIKE :query "\
-                         "OR LOWER(file_desc) LIKE :query "\
+                         "SELECT chat_id, file_id, "
+                         "user_title, user_nick, file_desc, type "
+                         "FROM Voicelist "
+                         "JOIN Userlist "
+                         "ON Userlist.id = Voicelist.user_id "
+                         "WHERE LOWER(user_title) LIKE :query "
+                         "OR LOWER(user_nick) LIKE :query "
+                         "OR LOWER(file_desc) LIKE :query "
 
-                         "UNION ALL "\
+                         "UNION ALL "
 
-                         "SELECT chat_id, file_id, "\
-                         "user_title, user_nick, file_desc, type "\
-                         "FROM Quotelist "\
-                         "JOIN Userlist "\
-                         "ON Userlist.id = Quotelist.user_id "\
-                         "WHERE LOWER(user_title) LIKE :query "\
-                         "OR LOWER(user_nick) LIKE :query "\
-                         "OR LOWER(file_desc) LIKE :query "\
+                         "SELECT chat_id, file_id, "
+                         "user_title, user_nick, file_desc, type "
+                         "FROM Quotelist "
+                         "JOIN Userlist "
+                         "ON Userlist.id = Quotelist.user_id "
+                         "WHERE LOWER(user_title) LIKE :query "
+                         "OR LOWER(user_nick) LIKE :query "
+                         "OR LOWER(file_desc) LIKE :query "
 
-                         ")"\
-                         "ORDER BY type DESC, user_nick, user_title, LOWER(file_desc) "\
-                         "LIMIT :limit "\
+                         ")"
+                         "ORDER BY type DESC, "
+                         "user_nick, user_title, LOWER(file_desc) "
+                         "LIMIT :limit "
                          "OFFSET :offset",
                          {"query": query, "limit": limit, "offset": offset})
     return res.fetchall()

@@ -6,14 +6,15 @@ import csv
 import snearl.module.blacklist_db as db
 from snearl.database import export_dir, import_dir
 
+
 #############
 # Functions #
 #############
 
+
 def export_blacklist():
-    """
-    Экспорт блокировок из базы данных.
-    """
+    """Экспорт блокировок из базы данных."""
+
     export_file = export_dir / "blacklist.csv"
 
     export_dir.mkdir(parents=True, exist_ok=True)
@@ -24,10 +25,10 @@ def export_blacklist():
 
     print(f"\nУспешно экспортировано в файл {export_file}.")
 
+
 def import_blacklist():
-    """
-    Импорт блокировок в базу данных.
-    """
+    """Импорт блокировок в базу данных."""
+
     import_file = import_dir / "blacklist.csv"
 
     if not import_file.is_file():

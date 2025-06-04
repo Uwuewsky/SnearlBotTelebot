@@ -19,53 +19,57 @@ scaling = 2
 
 Param = SimpleNamespace(
     # шрифт никнейма
-    font_header = ImageFont.truetype(str(db.data_dir / "NotoSans-Bold.ttf"), round(21 * scaling)),
+    font_header=ImageFont.truetype(str(db.data_dir / "NotoSans-Bold.ttf"),
+                                   round(21 * scaling)),
     # шрифт текста
-    font_content = ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"), round(18 * scaling)),
+    font_content=ImageFont.truetype(str(db.data_dir / "NotoSans-Regular.ttf"),
+                                    round(18 * scaling)),
 
     # параметры сохранения в блоб
-    save_format = "webp",
-    save_lossless = False,
-    save_quality = 90,
+    save_format="webp",
+    save_lossless=False,
+    save_quality=90,
 
     # максимальная высота цитаты
     # все последующие кластеры сообщений будут отброшены
-    image_max_height = round(2500 * scaling),
+    image_max_height=round(2500 * scaling),
 
     # макс размер кластера сообщений
-    cluster_max_size = (round(768 * scaling), round(1536 * scaling)),
+    cluster_max_size=(round(768 * scaling), round(1536 * scaling)),
     # отступ между кластерами
-    cluster_margin = round(10 * scaling),
+    cluster_margin=round(10 * scaling),
 
     # отступ сообщения от аватарки
-    avatar_margin = round(5 * scaling),
+    avatar_margin=round(5 * scaling),
 
     # отступ между сообщениями
-    message_margin = round(7 * scaling),
+    message_margin=round(7 * scaling),
     # отступ текста от границ
-    message_padding = round(10 * scaling),
+    message_padding=round(10 * scaling),
     # отступ контента сверху от никнейма
-    content_padding = round(7 * scaling),
+    content_padding=round(7 * scaling),
 
     # параметры заднего фона
-    background_color = (35, 35, 45, 255),
-    background_radius = round(16 * scaling),
+    background_color=(35, 35, 45, 255),
+    background_radius=round(16 * scaling),
 
     # рисовать текст чуть выше
     # чтобы он был горизонтально по центру
-    text_offset = round(-4 * scaling),
-    text_color = (245, 245, 245),
+    text_offset=round(-4 * scaling),
+    text_color=(245, 245, 245),
 
-    picture_max_size = (round(340 * scaling), round(340 * scaling)),
+    picture_max_size=(round(340 * scaling), round(340 * scaling)),
 
-    avatar_size = round(48 * scaling),
+    avatar_size=round(48 * scaling),
     # визуальный отступ, не влияет на возвращаемый размер
-    avatar_offset = (round(0 * scaling), round(7 * scaling))
+    avatar_offset=(round(0 * scaling), round(7 * scaling))
 )
+
 
 ####################
 # Рисование цитаты #
 ####################
+
 
 def draw_quote(message_list):
     """Рисование цитаты"""
@@ -91,6 +95,7 @@ def draw_quote(message_list):
                    lossless=Param.save_lossless,
                    quality=Param.save_quality)
     return file_bytes
+
 
 #############################
 # Пример cluster:
@@ -137,6 +142,7 @@ def _draw_cluster(cluster):
     # обрезаем до содержимого
     img = img.crop(quote_size)
     return img
+
 
 def _draw_content(img, draw, nickname, content, margin):
     """Отрисовка всех сообщений кластера поотдельности"""
@@ -188,6 +194,7 @@ def _draw_content(img, draw, nickname, content, margin):
 
     return full_size
 
+
 def _get_sizes(img, draw, nickname, content, margin):
     """Рассчет размеров и отступов элементов сообщения"""
     # отступ заголовка с никнеймом
@@ -202,7 +209,9 @@ def _get_sizes(img, draw, nickname, content, margin):
 
     # отступ содержимого сообщения
     message_margin = (header_size[0],
-                      header_size[3] + (Param.content_padding if nickname else 0))
+                      header_size[3] + (
+                          Param.content_padding if nickname else 0
+                      ))
     message_size = _draw_message(img, draw, content,
                                  message_margin, skip=True)
 
@@ -210,6 +219,7 @@ def _get_sizes(img, draw, nickname, content, margin):
                  max(header_size[2], message_size[2]) + Param.message_padding,
                  max(header_size[3], message_size[3]) + Param.message_padding]
     return header_margin, message_margin, full_size
+
 
 def _draw_background(img, draw, size):
     margin = (size[0], size[1])
@@ -227,8 +237,9 @@ def _draw_background(img, draw, size):
     img.alpha_composite(start_img.resize((width, height)),
                         margin)
 
+
 def _draw_nickname(img, draw, nickname, margin, skip=False):
-    color = _get_color_by_hash(nickname) # (160, 200, 255)
+    color = _get_color_by_hash(nickname)  # (160, 200, 255)
     offset = (margin[0], margin[1] + Param.text_offset)
 
     # вернуть размеры заголовка, ничего не рисуя
@@ -244,9 +255,11 @@ def _draw_nickname(img, draw, nickname, margin, skip=False):
     # draw.text(offset, nickname, font=Param.font_header, fill=color)
     with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
         pilmoji.text(offset, nickname,
-                     font=Param.font_header, fill=color,
+                     font=Param.font_header,
+                     fill=color,
                      emoji_scale_factor=1.2,
-                     emoji_position_offset=(0,3))
+                     emoji_position_offset=(0, 3))
+
 
 def _draw_message(img, draw, content, margin, skip=False):
     if content[0] == "pic":
@@ -254,6 +267,7 @@ def _draw_message(img, draw, content, margin, skip=False):
     if content[0] == "txt":
         size = _draw_text(img, draw, content[1], margin, skip=skip)
     return size
+
 
 def _draw_text(img, draw, text, margin, skip=False):
     offset = (margin[0], margin[1] + Param.text_offset)
@@ -270,7 +284,8 @@ def _draw_text(img, draw, text, margin, skip=False):
         pilmoji.text(offset, text,
                      font=Param.font_content,
                      fill=Param.text_color,
-                     emoji_position_offset=(0,5))
+                     emoji_position_offset=(0, 5))
+
 
 def _draw_picture(img, draw, picture, margin, skip=False):
     with Image.open(picture) as p:
@@ -284,6 +299,7 @@ def _draw_picture(img, draw, picture, margin, skip=False):
             img.alpha_composite(p, margin)
         else:
             img.paste(p, margin)
+
 
 def _draw_avatar(img, draw, avatar, nickname):
     if not avatar:
@@ -316,6 +332,7 @@ def _draw_avatar(img, draw, avatar, nickname):
     # возвращаем размеры аватарки (x1, y1, x2, y2)
     return (0, 0, size, size)
 
+
 def _draw_fallback_avatar(nickname):
     # взять цвет по хэшу никнейма
     color = _get_color_by_hash(nickname)
@@ -333,10 +350,11 @@ def _draw_fallback_avatar(nickname):
     avatar.close()
     return file_bytes
 
+
 def _merge_clusters(strips):
     """Склеивает из отдельных кластеров цитату целиком"""
     # if len(strips) == 1:
-        # return strips[0]
+    #     return strips[0]
 
     # отступ между кластерами сообщений
     margin = Param.cluster_margin
@@ -372,17 +390,18 @@ def _merge_clusters(strips):
     img = img.crop((0, 0, crop_w, crop_h))
     return img
 
+
 def _get_color_by_hash(nickname):
     index_hash = "".join(filter(str.isdigit,
                                 utils.md5(nickname)))[:1]
 
     index = int(index_hash or "0") - 5
     color = [
-        (240, 200, 160), # оранжевый
-        (240, 160, 160), # красный
-        (160, 240, 160), # зеленый
-        (200, 160, 240), # фиолетовый
-        (160, 200, 240)  # синий
+        (240, 200, 160),  # оранжевый
+        (240, 160, 160),  # красный
+        (160, 240, 160),  # зеленый
+        (200, 160, 240),  # фиолетовый
+        (160, 200, 240)   # синий
     ][index]
 
     return color

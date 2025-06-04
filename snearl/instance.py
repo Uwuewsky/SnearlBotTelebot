@@ -13,6 +13,7 @@ from telegram.ext import (
 
 import snearl.database as db
 
+
 persistence = PicklePersistence(filepath=db.data_dir / "persistence")
 log_file = db.data_dir / "log.txt"
 
@@ -24,25 +25,30 @@ app = (
 )
 help_messages = ["SnearlBot умеет:\n"]
 
+
 ##########################
 # Информационные команды #
 ##########################
+
 
 async def send_help(update, context):
     msg = "\n\=\=\=\=\=\=\=\=\=\=\=\=\=\=\=\=".join(help_messages)
     await update.message.reply_markdown_v2(msg)
 
+
 async def send_info(update, context):
     await update.message.reply_markdown_v2(
-        f"Chat ID: `{update.effective_chat.id}`\n"\
+        f"Chat ID: `{update.effective_chat.id}`\n"
         f"User ID: `{update.effective_user.id}`")
 
     if log_file.is_file() and log_file.stat().st_size > 0:
         await update.message.reply_document(log_file)
 
+
 ########################
 # Функция запуска бота #
 ########################
+
 
 def start_bot():
     handler1 = RotatingFileHandler(log_file,

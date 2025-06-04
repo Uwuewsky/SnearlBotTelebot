@@ -11,9 +11,11 @@ from telegram.constants import ChatMemberStatus
 
 import snearl.database as db
 
+
 ####################
 # Функции проверки #
 ####################
+
 
 async def check_access(update):
     """Возвращает True если доступ к команде запрещен."""
@@ -41,15 +43,18 @@ async def check_access(update):
         "У тебя нет прав использовать админскую команду.")
     return True
 
+
 ####################
 # /автоудаление    #
 ####################
+
 
 def schedule_delete_message(context, name, msg):
     """Запланировать удаление сообщения."""
     context.job_queue.run_once(delete_message, 5 * 60,
                                name=f"{name}-{msg.id}",
                                data=msg)
+
 
 async def delete_message(context):
     """Удаляет сообщение по истечении минуты."""
@@ -66,15 +71,18 @@ async def delete_message(context):
 # Строковые
 ############
 
+
 def md5(s):
     if s:
         return hashlib.md5(s.encode()).hexdigest()
     return None
 
+
 def get_full_description(message):
     """Возвращает текст сообщения."""
     text = message.text or message.caption
     return text if text else None
+
 
 def get_description(message):
     """Возвращает сокращенный текст сообщения."""
@@ -93,9 +101,11 @@ def get_description(message):
             res.append(s)
     return "\n".join(res[:max_lines])
 
+
 def get_sender_title_short(message):
     s = get_sender_title(message)
     return textwrap.shorten(s, width=35, placeholder="...")
+
 
 def get_sender_id(message):
     """Возвращает id отправителя."""
@@ -113,6 +123,7 @@ def get_sender_id(message):
         s = message.from_user.id
     return s
 
+
 def get_sender_title(message):
     """Возвращает имя отправителя."""
     s = None
@@ -129,6 +140,7 @@ def get_sender_title(message):
         s = message.from_user.full_name
     return s
 
+
 def get_sender_username(message):
     """Возвращает @тег_пользователя"""
     s = None
@@ -144,6 +156,7 @@ def get_sender_username(message):
     elif message.from_user:
         s = message.from_user.username
     return s
+
 
 def validate(text):
     """Убирает из имени все символы кроме букв, цифр и подчеркивания."""

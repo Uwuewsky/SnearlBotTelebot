@@ -10,8 +10,10 @@ from snearl.instance import app
 from snearl.module import utils
 from snearl.module import userlist_db
 
+
 # Медиа функции
 ################
+
 
 async def get_picture(message):
     picture = None
@@ -30,6 +32,7 @@ async def get_picture(message):
 
     return picture
 
+
 async def get_avatar(message):
 
     # попробовать загрузить из бд
@@ -47,19 +50,19 @@ async def get_avatar(message):
         avatar_file = None
         pl = None
 
-        if message.forward_origin:
-            if message.forward_origin.type == MessageOrigin.USER:
-                pl = await message.forward_origin.sender_user.get_profile_photos(limit=1)
+        if origin := message.forward_origin:
+            if origin.type == MessageOrigin.USER:
+                pl = await origin.sender_user.get_profile_photos(limit=1)
                 if pl and pl.total_count > 0:
                     avatar_file = pl.photos[0][0]
-            if message.forward_origin.type == MessageOrigin.HIDDEN_USER:
+            if origin.type == MessageOrigin.HIDDEN_USER:
                 raise Exception
-            if message.forward_origin.type == MessageOrigin.CHAT:
-                chat = await app.bot.get_chat(message.forward_origin.sender_chat.id)
+            if origin.type == MessageOrigin.CHAT:
+                chat = await app.bot.get_chat(origin.sender_chat.id)
                 if chat.photo:
                     avatar_file = chat.photo.small_file_id
-            if message.forward_origin.type == MessageOrigin.CHANNEL:
-                chat = await app.bot.get_chat(message.forward_origin.chat.id)
+            if origin.type == MessageOrigin.CHANNEL:
+                chat = await app.bot.get_chat(origin.chat.id)
                 if chat.photo:
                     avatar_file = chat.photo.small_file_id
         elif message.from_user:
@@ -73,6 +76,7 @@ async def get_avatar(message):
         pass
 
     return avatar
+
 
 async def download_file(file_id):
     file_bytes = io.BytesIO()

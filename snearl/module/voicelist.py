@@ -22,11 +22,12 @@ from snearl.instance import app, help_messages
 import snearl.module.authormodel as datamodel
 import snearl.module.authormodel_kbrd as kbrd
 from snearl.module.voicelist_db import db
-from snearl.module import userlist_db
+
 
 ####################
 # main             #
 ####################
+
 
 def main():
     help_messages.append("""
@@ -54,32 +55,36 @@ def main():
     app.add_handler(CommandHandler("voicelist", voicelist_show))
 
     app.add_handler(ConversationHandler(
-        entry_points = [CommandHandler("v", voice_start)],
-        states = {
+        entry_points=[CommandHandler("v", voice_start)],
+        states={
             1: [MessageHandler(filters.ALL, voice_get_info)],
             ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL,
                                                          voice_cancel)]
         },
-        fallbacks = [MessageHandler(filters.ALL, voice_cancel)],
-        conversation_timeout = 30), group=3)
+        fallbacks=[MessageHandler(filters.ALL, voice_cancel)],
+        conversation_timeout=30), group=3)
 
     # коллбек /voicelist
     app.add_handler(CallbackQueryHandler(
         voicelist_show_callback,
         pattern="^voicelist"))
 
+
 ####################
 # inline functions #
 ####################
 
+
 def voice_search(query, offset, limit):
     return db.search(query, offset, limit)
 
+
 def voice_query_result(i, e):
     """Функция инлайн запроса списка войсов."""
+
     return InlineQueryResultCachedVoice(
         id=str(i),
-        voice_file_id = e[1],
+        voice_file_id=e[1],
         title=f"{e[3] or e[2]} — {e[4]}",
         # текстовые подписи вида
         # "Автор - Описание войса"
@@ -87,12 +92,14 @@ def voice_query_result(i, e):
         # caption=f"{e[2]} — {e[3]}"
     )
 
+
 ####################
 # /voice_add       #
 ####################
 
 # Start
 ############
+
 
 async def voice_start(update, context):
     """Команда добавления нового голосового сообщения."""
@@ -149,15 +156,18 @@ async def voice_start(update, context):
     # проверить наличие имени автора и описания
     # если нет, то ждать ввода от пользователя
     if res := await _voice_check_info(update, context):
-        return res # stage 1
+        return res  # stage 1
 
     return (await voice_add(update, context))
+
 
 # Add
 ############
 
+
 async def voice_add(update, context):
     """Команда добавления нового голосового сообщения."""
+
     chat_id = update.effective_chat.id
     file_id = context.user_data["voice_id"]
     file_desc = context.user_data["voice_desc"]
@@ -178,8 +188,10 @@ async def voice_add(update, context):
         f"В дискографию {user_title} успешно добавлено {file_desc}")
     return (await voice_end(update, context))
 
+
 # Stage 1
 ############
+
 
 async def voice_get_info(update, context):
     """
@@ -196,13 +208,15 @@ async def voice_get_info(update, context):
     # проверить наличие описания если нет,
     # то снова ждать ввода от пользователя
     if res := await _voice_check_info(update, context):
-        return res # stage 1
+        return res  # stage 1
 
     status = await voice_add(update, context)
     return status
 
+
 # Cancel
 ############
+
 
 async def voice_cancel(update, context):
     """Отмена команды добавления."""
@@ -213,6 +227,7 @@ async def voice_cancel(update, context):
         "Добавление войса отменено.")
 
     return (await voice_end(update, context))
+
 
 async def voice_end(update, context):
     """Завершение команды добавления."""
@@ -226,8 +241,10 @@ async def voice_end(update, context):
     context.user_data.clear()
     return ConversationHandler.END
 
+
 # Вспомогательные функции
 ###########################
+
 
 async def _voice_check_info(update, context):
     """Проверяет наличие имени автора и описания."""
@@ -239,16 +256,18 @@ async def _voice_check_info(update, context):
         return None
 
     msg = await update.message.reply_markdown_v2(
-        f"Теперь напишите описание для этого войса\.\n\n"\
+        "Теперь напишите описание для этого войса\.\n\n"
         "_Описание можно ввести вручную:_ `/voice_add Продал все приставки`")
 
     context.user_data["voice_delete"].append(msg)
 
-    return 1 # stage 1
+    return 1  # stage 1
+
 
 ####################
 # /voice_delete    #
 ####################
+
 
 async def voice_delete(update, context):
     """Команда удаления голосового сообщения."""
@@ -260,9 +279,11 @@ async def voice_delete(update, context):
         "voice", "дискографии"
     )
 
+
 ####################
 # /voicelist       #
 ####################
+
 
 async def voicelist_show(update, context):
     """Команда показа списка голосовых сообщений."""
@@ -286,13 +307,15 @@ async def voicelist_show(update, context):
 
     utils.schedule_delete_message(context, "voice_list_delete", msg)
 
+
 async def voicelist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /voicelist."""
     await kbrd.callback(update, context,
                         _voicelist_show_text,
                         _voicelist_show_keyboard)
 
-def _voicelist_show_text(chat_id, author_num, page, author_name = None):
+
+def _voicelist_show_text(chat_id, author_num, page, author_name=None):
     """Возвращает текст сообщения /voicelist"""
     e = kbrd.get_text(chat_id, author_num, page,
                       db.authors_names_list,
@@ -301,8 +324,9 @@ def _voicelist_show_text(chat_id, author_num, page, author_name = None):
                       author_name)
     return e
 
+
 def _voicelist_show_keyboard(chat_id, author_num, page,
-                             user_id, author_name = None):
+                             user_id, author_name=None):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     e = kbrd.show_keyboard(chat_id, author_num, page, user_id,
                            db.authors_names_list,

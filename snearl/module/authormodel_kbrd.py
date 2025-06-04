@@ -9,9 +9,11 @@ from telegram import (
     InlineKeyboardButton, InlineKeyboardMarkup
 )
 
+
 #############
 # Keyboard  #
 #############
+
 
 def show_keyboard(chat_id, author_num, page, user_id,
                   get_authors_list, get_by_author,
@@ -40,8 +42,8 @@ def show_keyboard(chat_id, author_num, page, user_id,
     # используем автора чтобы получить его список
     # и последнюю страницу для пролистывания их списка
     page_max = 0
-    if l := get_by_author(chat_id, file_author):
-        page_max = max(0, math.ceil(len(l)/25) - 1)
+    if pl := get_by_author(chat_id, file_author):
+        page_max = max(0, math.ceil(len(pl)/25) - 1)
     if not (0 <= page <= page_max):
         page = 0
 
@@ -121,9 +123,11 @@ def show_keyboard(chat_id, author_num, page, user_id,
     reply_markup = InlineKeyboardMarkup(keyboard)
     return reply_markup
 
+
 #############
 # Callback  #
 #############
+
 
 async def callback(update, context,
                    get_reply_text,
@@ -166,19 +170,21 @@ async def callback(update, context,
     await update.callback_query.edit_message_text(
         out_message, reply_markup=markup)
 
+
 ##############
 # List text  #
 ##############
 
+
 def get_text(chat_id, author_num, page,
              get_authors_list, get_by_author,
-             list_name, author_name = None):
+             list_name, author_name=None):
     """Возвращает текст сообщения"""
 
     if al := get_authors_list(chat_id):
         # найти автора по номеру из списка всех авторов чата
         if author_name in al:
-        # либо взять автора сразу по переданному имени
+            # либо взять автора сразу по переданному имени
             file_author = author_name
         elif 0 <= author_num < len(al):
             file_author = al[author_num]

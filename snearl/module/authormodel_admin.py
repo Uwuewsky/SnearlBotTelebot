@@ -4,19 +4,19 @@
 
 import time
 import json
-import pathlib
 
 import snearl.database as db
 from snearl.module import utils
+
 
 #############
 # Functions #
 #############
 
+
 def export_table(dir_name, file_ext, db_get_all, db_get_blob):
-    """
-    Экспорт из базы данных.
-    """
+    """Экспорт из базы данных."""
+
     table_dir = db.export_dir / dir_name
 
     for r in db_get_all():
@@ -25,7 +25,9 @@ def export_table(dir_name, file_ext, db_get_all, db_get_blob):
         file_blob = db_get_blob(file_id)
 
         file_desc = utils.validate(file_desc) or "Без названия"
-        user_dir = utils.validate(user_title) or utils.validate(user_name) or utils.md5(user_title)
+        user_dir = utils.validate(user_title) \
+            or utils.validate(user_name) \
+            or utils.md5(user_title)
 
         file_dir = table_dir / user_dir
         info_file = file_dir / "info.json"
@@ -46,16 +48,16 @@ def export_table(dir_name, file_ext, db_get_all, db_get_blob):
 
         with open(info_file, "w", encoding="utf-8") as f:
             json.dump({"user_name": user_name, "user_title": user_title},
-                      f, ensure_ascii = False, indent = "    ")
+                      f, ensure_ascii=False, indent="    ")
 
     print(f"\nУспешно экспортировано в папку {table_dir}.")
+
 
 async def init_table(update, context,
                      dir_name, file_ext,
                      send_attachment, db_add):
-    """
-    Загрузка файлов в Телеграм для дальнейшего использования.
-    """
+    """Загрузка файлов в Телеграм для дальнейшего использования."""
+
     # папка с импортируемыми записями
     table_dir = db.import_dir / dir_name
     if not table_dir.is_dir():
@@ -63,10 +65,11 @@ async def init_table(update, context,
         return
 
     if (table_dir / "YourChatIdHere").is_dir():
-        print(f"[ИМПОРТ ПРЕРВАН] Найдена папка «{table_dir}/YourChatIdHere».\n"\
-              "Это папка с тестовым набором данных.\n"\
-              "Вам нужно переименовать YourChatIdHere в ID вашего чата (/info) или удалить эту папку,\n"\
-              "иначе вы не сможете управлять этими данными через команды в Telegram.")
+        print(f"[ИМПОРТ ПРЕРВАН] Найдена папка «{table_dir}/YourChatIdHere».\n"
+              "Это папка с тестовым набором данных.\n"
+              "Вам нужно переименовать YourChatIdHere в ID вашего чата (/info)"
+              " или удалить эту папку,\nиначе вы не сможете управлять"
+              " этими данными через команды в Telegram.")
         return
 
     file_count = 0
@@ -97,14 +100,16 @@ async def init_table(update, context,
             file_desc = f.stem
             file_blob = f.read_bytes()
 
-            db_add(chat_id, file_id, user_name, user_title, file_desc, file_blob)
+            db_add(chat_id, file_id,
+                   user_name, user_title,
+                   file_desc, file_blob)
             time.sleep(0.05)
     db.con.commit()
 
     await update.effective_chat.send_message(
-        "Импорт завершен.\n"\
+        "Импорт завершен.\n"
         f"Кол-во: {file_count} шт.\n"
-        f"Время: {int(time.time() - start_t)} сек.\n"\
+        f"Время: {int(time.time() - start_t)} сек.\n"
         "Вернитесь к консоли и нажмите Ctrl+C.")
 
     print("\nУспешно импортировано в базу данных.")

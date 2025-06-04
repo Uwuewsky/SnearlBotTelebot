@@ -24,11 +24,12 @@ import snearl.module.authormodel as datamodel
 import snearl.module.authormodel_kbrd as kbrd
 from snearl.module.quotelist_db import db
 import snearl.module.quotelist_draw as drawing
-from snearl.module import userlist_db
+
 
 ####################
 # main             #
 ####################
+
 
 def main():
     help_messages.append("""
@@ -57,32 +58,40 @@ def main():
                                    send_random_quote))
 
     app.add_handler(ConversationHandler(
-        entry_points = [CommandHandler("q", quote_start)],
-        states = {
-            0: [MessageHandler(filters.FORWARDED, quote_receive)],
-            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, quote_timeout)]
+        entry_points=[CommandHandler("q", quote_start)],
+        states={
+            0: [
+                MessageHandler(filters.FORWARDED, quote_receive)
+            ],
+            ConversationHandler.TIMEOUT: [
+                MessageHandler(filters.ALL, quote_timeout)
+            ]
         },
-        fallbacks = [MessageHandler(filters.ALL, quote_cancel)],
-        conversation_timeout = 1), group=4)
+        fallbacks=[MessageHandler(filters.ALL, quote_cancel)],
+        conversation_timeout=1), group=4)
 
     # коллбек /quotelist
     app.add_handler(CallbackQueryHandler(
         quotelist_show_callback,
         pattern="^quotelist"))
 
+
 ####################
 # inline functions #
 ####################
 
+
 def quote_search(query, offset, limit):
     return db.search(query, offset, limit)
+
 
 def quote_query_result(i, e):
     """Функция возвращающая InlineQueryResult."""
     return InlineQueryResultCachedSticker(
         id=str(i),
-        sticker_file_id = e[1]
+        sticker_file_id=e[1]
         )
+
 
 ####################
 # /quote_add       #
@@ -90,6 +99,7 @@ def quote_query_result(i, e):
 
 # Start
 ############
+
 
 async def quote_start(update, context):
     """Начало команды цитирования."""
@@ -112,10 +122,12 @@ async def quote_start(update, context):
     # создать цитату из него одного
     if m := update.message.reply_to_message:
         return (await quote_create(update, context, [m]))
-    return 0 # stage 0
+    return 0  # stage 0
+
 
 # Stage 0
 ############
+
 
 async def quote_receive(update, context):
     """Получение сообщения для цитаты."""
@@ -130,8 +142,10 @@ async def quote_receive(update, context):
     # иначе создать цитату и закончить разговор
     return (await quote_create(update, context, messages))
 
+
 # Timeout
 ############
+
 
 async def quote_timeout(update, context):
     """Таймаут команды цитирования."""
@@ -143,18 +157,21 @@ async def quote_timeout(update, context):
     # иначе отмена
     return (await quote_cancel(update, context))
 
+
 # Cancel
 ############
+
 
 async def quote_cancel(update, context):
     """Отмена команды цитирования."""
 
     await context.user_data["quote_command"].reply_text(
-        "Чтобы создать цитату:\n\n"\
-        "a. Отправьте команду /q ответом на сообщение.\n"\
+        "Чтобы создать цитату:\n\n"
+        "a. Отправьте команду /q ответом на сообщение.\n"
         "b. Либо перешлите до 10 сообщений в чат ОДНОВРЕМЕННО с командой /q.")
 
     return (await quote_end(update, context))
+
 
 async def quote_end(update, context):
     """Завершение команды цитирования"""
@@ -173,8 +190,10 @@ async def quote_end(update, context):
     context.user_data.clear()
     return ConversationHandler.END
 
+
 # Create
 ############
+
 
 async def quote_create(update, context, messages):
     """Команда создания новой цитаты."""
@@ -214,14 +233,14 @@ async def quote_create(update, context, messages):
             claimed_names = [i[4] for i in nameless_list]
 
             for i in claimed_names:
-                if not file_desc in claimed_names:
+                if file_desc not in claimed_names:
                     break
                 file_num += 1
                 file_desc = f"Без названия {file_num}"
 
         await quote_reply.reply_markdown_v2(
-            f"Эта цитата сохранена как «{file_desc}»\. "\
-            "Описание можно ввести вручную, например:\n"\
+            f"Эта цитата сохранена как «{file_desc}»\. "
+            "Описание можно ввести вручную, например:\n"
             "`/q Компромат`")
 
     # добавляем в базу данных
@@ -234,8 +253,10 @@ async def quote_create(update, context, messages):
 
     return (await quote_end(update, context))
 
+
 # Вспомогательные функции
 ###########################
+
 
 async def _quote_get_message_data(messages):
     """Извлекает нужные данные из сообщений."""
@@ -275,9 +296,9 @@ async def _quote_get_message_data(messages):
         last_quote = cluster_list[-1] if cluster_list else None
 
         if (last_quote
-            and last_quote["user_title"] == message_user_title
-            and last_quote["user_name"] == message_user_name
-            and last_quote["user_id"] == message_user_id):
+           and last_quote["user_title"] == message_user_title
+           and last_quote["user_name"] == message_user_name
+           and last_quote["user_id"] == message_user_id):
 
             if message_picture:
                 last_quote["content"].append(("pic", message_picture))
@@ -293,7 +314,7 @@ async def _quote_get_message_data(messages):
         # подряд от одного юзера
         cluster = {
             "user_id": message_user_id,   # не отрисовывается
-            "user_name": message_user_name, # не отрисовывается
+            "user_name": message_user_name,  # не отрисовывается
             "user_title": message_user_title,
             "avatar": message_avatar,
             "content": []
@@ -310,9 +331,11 @@ async def _quote_get_message_data(messages):
 
     return (user_name, user_title, file_desc, cluster_list)
 
+
 ####################
 # random quotes    #
 ####################
+
 
 async def send_random_quote(update, context):
 
@@ -341,12 +364,13 @@ async def send_random_quote(update, context):
             await update.message.reply_sticker(random_quote)
     return
 
+
 async def quote_frequency(update, context):
 
     current_frequency = context.chat_data.get("quote_random", 1)
     if not context.args:
         await update.message.reply_markdown_v2(
-            f"Текущая вероятность: {current_frequency}%\.\n"\
+            f"Текущая вероятность: {current_frequency}%\.\n"
             "Изменить: `/quote_random [0-100]`")
         return
 
@@ -364,12 +388,14 @@ async def quote_frequency(update, context):
                 "Частота должна быть между 0 и 100.")
     except Exception:
         await update.message.reply_markdown_v2(
-        "Введите корректную частоту ответов в процентах\.\n"\
-        "Например, `/quote_random 20`")
+            "Введите корректную частоту ответов в процентах\.\n"
+            "Например, `/quote_random 20`")
+
 
 ####################
 # /quote_delete    #
 ####################
+
 
 async def quote_delete(update, context):
     """Команда удаления цитаты."""
@@ -381,9 +407,11 @@ async def quote_delete(update, context):
         "quote", "сборника афоризмов"
     )
 
+
 ####################
 # /quotelist       #
 ####################
+
 
 async def quotelist_show(update, context):
     """Команда показа списка цитат."""
@@ -407,13 +435,15 @@ async def quotelist_show(update, context):
 
     utils.schedule_delete_message(context, "quote_list_delete", msg)
 
+
 async def quotelist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /quotelist."""
     await kbrd.callback(update, context,
                         _quotelist_show_text,
                         _quotelist_show_keyboard)
 
-def _quotelist_show_text(chat_id, author_num, page, author_name = None):
+
+def _quotelist_show_text(chat_id, author_num, page, author_name=None):
     """Возвращает текст сообщения /quotelist"""
     e = kbrd.get_text(chat_id, author_num, page,
                       db.authors_names_list,
@@ -422,8 +452,9 @@ def _quotelist_show_text(chat_id, author_num, page, author_name = None):
                       author_name)
     return e
 
+
 def _quotelist_show_keyboard(chat_id, author_num, page,
-                             user_id, author_name = None):
+                             user_id, author_name=None):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
     e = kbrd.show_keyboard(chat_id, author_num, page, user_id,
                            db.authors_names_list,
@@ -431,4 +462,3 @@ def _quotelist_show_keyboard(chat_id, author_num, page,
                            "quotelist",
                            author_name)
     return e
-

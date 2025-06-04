@@ -15,9 +15,11 @@ from snearl.module import userlist_db
 import snearl.module.list_kbrd as kbrd
 import snearl.module.blacklist_db as db
 
+
 #####################
 # main              #
 #####################
+
 
 def main():
     help_messages.append("""
@@ -36,14 +38,16 @@ def main():
         blacklist_show_callback,
         pattern="^blacklist"))
 
+
 #####################
 # delete handler    #
 #####################
 
+
 async def delete_repost(update, context):
     """Функция удаления сообщения, репостнутой из чата в черном списке."""
     if update.message is None:
-        return # опоздавшее обновление; сообщение уже удалено
+        return  # опоздавшее обновление; сообщение уже удалено
 
     user_name = utils.get_sender_username(update.message)
     user_title = utils.get_sender_title(update.message)
@@ -64,9 +68,11 @@ async def delete_repost(update, context):
             f"Репост из {user_title} удален.")
     context.chat_data["block_antispam"] = time.time()
 
+
 #####################
 # /block            #
 #####################
+
 
 async def block_group(update, context):
     """Команда добавления чата в блеклист."""
@@ -93,9 +99,11 @@ async def block_group(update, context):
     await update.message.reply_text(
         f"Репосты из {user_title} добавлены в черный список.")
 
+
 #####################
 # /allow            #
 #####################
+
 
 async def allow_group(update, context):
     """Команда удаления чата из блеклиста."""
@@ -117,9 +125,11 @@ async def allow_group(update, context):
         await update.message.reply_text(
             "Нужно указать номер чата из списка /blacklist.")
 
+
 #####################
 # /blacklist        #
 #####################
+
 
 async def blacklist_show(update, context):
     """Команда показа списка заблокированных чатов."""
@@ -133,11 +143,13 @@ async def blacklist_show(update, context):
 
     utils.schedule_delete_message(context, "black_list_delete", msg)
 
+
 async def blacklist_show_callback(update, context):
     """Функция, отвечающая на коллбэки от нажатия кнопок /blacklist."""
     await kbrd.callback(update, context,
                         _blacklist_show_text,
                         _blacklist_show_keyboard)
+
 
 def _blacklist_show_text(chat_id, page):
     """Возвращает текст сообщения /blacklist"""
@@ -145,6 +157,7 @@ def _blacklist_show_text(chat_id, page):
                       db.by_chat,
                       "Список заблокированных чатов")
     return e
+
 
 def _blacklist_show_keyboard(chat_id, page, user_id):
     """Клавиатура сообщения с кнопками для пролистывания списка."""

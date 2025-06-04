@@ -10,16 +10,19 @@
 import snearl.database as db
 from snearl.module import utils
 
+
 ####################
 # /entry_delete    #
 ####################
 
+
 async def entry_delete(update, context,
-                       db_get_authors,   # функ. все авторы чата
-                       db_get_by_author, # функ. все записи автора
-                       db_delete,        # функ. удаление записи по id
-                       list_name, list_name_fun): # названия списков
+                       db_get_authors,    # функ. все авторы чата
+                       db_get_by_author,  # функ. все записи автора
+                       db_delete,         # функ. удаление записи по id
+                       list_name, list_name_fun):  # названия списков
     """Команда удаления через бота."""
+
     if await utils.check_access(update):
         return
 
@@ -42,8 +45,8 @@ async def entry_delete(update, context,
 
     except Exception:
         await update.message.reply_markdown_v2(
-            "Нужно указать номер автора и удаляемой записи из "\
-            f"/{list_name}list, например:\n"\
+            "Нужно указать номер автора и удаляемой записи из "
+            f"/{list_name}list, например:\n"
             f"`/{list_name}_delete 2 15`")
         return
 

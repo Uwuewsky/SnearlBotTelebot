@@ -12,9 +12,11 @@ import snearl.module.blacklist_db as db_b
 from snearl.module.voicelist_db import db as db_v
 from snearl.module.quotelist_db import db as db_q
 
+
 #####################
 # main              #
 #####################
+
 
 def main():
     # миграция и автоудаление
@@ -23,7 +25,9 @@ def main():
     app.add_handler(
         MessageHandler(filters.StatusUpdate.MIGRATE, chat_migration))
     app.add_handler(
-        ChatMemberHandler(bot_status_changed, ChatMemberHandler.MY_CHAT_MEMBER))
+        ChatMemberHandler(bot_status_changed,
+                          ChatMemberHandler.MY_CHAT_MEMBER))
+
 
 async def chat_migration(update, context):
     """Заменяет ID чата на актуальный когда тип группы меняется."""
@@ -32,11 +36,13 @@ async def chat_migration(update, context):
     new_chat = update.message.migrate_to_chat_id
     chat_migrate(old_chat, new_chat)
 
+
 def chat_migrate(old_chat, new_chat):
     db_b.migration(old_chat, new_chat)
     db_v.migration(old_chat, new_chat)
     db_q.migration(old_chat, new_chat)
     db_b.con.commit()
+
 
 async def bot_status_changed(update, context):
     """Удаляет все записи чата из базы данных, когда бот из него выходит"""

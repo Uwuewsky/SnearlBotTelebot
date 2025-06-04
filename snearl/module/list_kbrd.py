@@ -6,14 +6,15 @@ import math
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
+
 def show_keyboard(chat_id, page, user_id, get_list, callback_name):
     """Клавиатура сообщения с кнопками для пролистывания списка."""
 
-    l = get_list(chat_id)
-    if not l:
+    cl = get_list(chat_id)
+    if not cl:
         return None
 
-    page_max = max(0, math.ceil(len(l)/25) - 1)
+    page_max = max(0, math.ceil(len(cl)/25) - 1)
     if not (0 <= page <= page_max):
         page = 0
 
@@ -39,6 +40,7 @@ def show_keyboard(chat_id, page, user_id, get_list, callback_name):
     reply_markup = InlineKeyboardMarkup([keyboard])
 
     return reply_markup
+
 
 async def callback(update, context,
                    get_reply_text,
@@ -71,17 +73,18 @@ async def callback(update, context,
     await update.callback_query.edit_message_text(
         out_message, reply_markup=markup)
 
+
 def get_text(chat_id, page, get_list, list_name):
     """Возвращает текст сообщения."""
 
-    if l := get_list(chat_id):
+    if cl := get_list(chat_id):
         s = f"{list_name}:\n\n"
         offset = page * 25
 
-        if not l[offset:offset+25]:
+        if not cl[offset:offset+25]:
             offset = 0
 
-        for i, e in enumerate(l[offset:offset+25], start=offset+1):
+        for i, e in enumerate(cl[offset:offset+25], start=offset+1):
             s += f"{i}) {e[1]}\n"
 
         return s
