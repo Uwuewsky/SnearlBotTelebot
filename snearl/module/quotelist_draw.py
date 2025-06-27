@@ -246,8 +246,7 @@ def _draw_nickname(img, draw, nickname, margin, skip=False):
     if skip:
         # return draw.textbbox(margin, nickname, font=Param.font_header)
         with Pilmoji(img, draw=draw, source=AppleEmojiSource) as pilmoji:
-            size = pilmoji.getsize(nickname, font=Param.font_header,
-                                   emoji_scale_factor=1.2)
+            size = pilmoji.getsize(nickname, font=Param.font_header)
 
         return margin + (margin[0] + size[0], margin[1] + size[1])
 
@@ -257,8 +256,7 @@ def _draw_nickname(img, draw, nickname, margin, skip=False):
         pilmoji.text(offset, nickname,
                      font=Param.font_header,
                      fill=color,
-                     emoji_scale_factor=1.2,
-                     emoji_position_offset=(0, 3))
+                     emoji_position_offset=(0, 5*scaling))
 
 
 def _draw_message(img, draw, content, margin, skip=False):
@@ -284,7 +282,7 @@ def _draw_text(img, draw, text, margin, skip=False):
         pilmoji.text(offset, text,
                      font=Param.font_content,
                      fill=Param.text_color,
-                     emoji_position_offset=(0, 5))
+                     emoji_position_offset=(0, 5*scaling))
 
 
 def _draw_picture(img, draw, picture, margin, skip=False):
