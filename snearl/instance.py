@@ -19,7 +19,7 @@ log_file = db.data_dir / "log.txt"
 
 app = (
     Application.builder()
-    .token(db.settings_get("token"))
+    .token(db.get_token())
     .persistence(persistence=persistence)
     .build()
 )

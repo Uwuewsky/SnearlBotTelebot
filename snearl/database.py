@@ -31,6 +31,23 @@ def table_clear(table):
     cur.execute(f"DELETE FROM {table}")
 
 
+def get_token():
+    """Возвращает строку с токеном из файла."""
+
+    token_file = data_dir / "token.txt"
+    if not token_file.exists():
+        print(f"Файл токена не найден:\n[{token_file.absolute()}]")
+        return
+
+    token = token_file.read_text().strip()
+
+    if not token:
+        print(f"Сначала скопируйте токен в файл:\n[{token_file.absolute()}]")
+        return
+
+    return token
+
+
 ####################
 # Таблица Settings #
 ####################

@@ -24,9 +24,9 @@ def main():
 
     app.add_handler(
         MessageHandler(filters.StatusUpdate.MIGRATE, chat_migration))
-    app.add_handler(
-        ChatMemberHandler(bot_status_changed,
-                          ChatMemberHandler.MY_CHAT_MEMBER))
+    # app.add_handler(
+    #     ChatMemberHandler(bot_status_changed,
+    #                       ChatMemberHandler.MY_CHAT_MEMBER))
 
 
 async def chat_migration(update, context):

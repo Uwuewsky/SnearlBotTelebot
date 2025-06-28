@@ -87,42 +87,12 @@ def clear_table():
     db.con.commit()
 
 
-def export_token():
-    """Экспорт токена из базы данных в файл."""
-
-    token_file = db.export_dir / "token.txt"
-    token = db.settings_get("token")
-
-    db.export_dir.mkdir(parents=True, exist_ok=True)
-    token_file.write_text(token)
-
-    print(f"\nТокен успешно экспортирован в файл {token_file}.")
-
-
-def import_token():
-    """Импорт токена в базу данных из файла."""
-
-    token_file = db.import_dir / "token.txt"
-    if not token_file.exists():
-        print(f"Файл токена не найден:\n{token_file}")
-        return
-
-    token = token_file.read_text().strip()
-    db.settings_set("token", token)
-
-    print("\nТокен успешно сохранен в базу данных.")
-
-
 ############
 # Commands #
 ############
 
 
 commands += [
-    (
-        "[v] Импортировать токен",
-        import_token
-    ),
     (
         "[v] Импортировать черный список",
         admin_b.import_blacklist
@@ -134,10 +104,6 @@ commands += [
     (
         "[v] Импортировать цитаты",
         admin_q.import_quotelist
-    ),
-    (
-        "[^] Экспортировать токен",
-        export_token
     ),
     (
         "[^] Экспортировать черный список",
